@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#FFFFFF"
+    tools:context=".AdminDashboardActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- ===== Header ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Admin Dashboard"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:gravity="center_horizontal"
+            android:layout_marginTop="20dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="University Management System"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:gravity="center_horizontal"
+            android:layout_marginTop="5dp"
+            android:layout_marginBottom="30dp"/>
+
+        <!-- ===== Welcome Message ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Welcome, Admin"
+            android:textSize="18sp"
+            android:textColor="#000000"
+            android:gravity="center_horizontal"
+            android:layout_marginBottom="5dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Use the navigation below to manage students and faculty."
+            android:textSize="12sp"
+            android:textColor="#555555"
+            android:gravity="center_horizontal"
+            android:layout_marginBottom="25dp"/>
+
+        <!-- ===== Navigation Buttons ===== -->
+        <Button
+            android:id="@+id/btnRegisterStudent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Register Student"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnRegisterFaculty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Register Faculty"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnAssignCourse"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Assign Course"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnViewStudents"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="View Students"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnViewFaculty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="View Faculty"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnChangePassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Change Password"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnNoticeBoard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Notice Board"
+            android:layout_marginBottom="10dp"/>
+
+        <Button
+            android:id="@+id/btnLogout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Logout"
+            android:backgroundTint="#D32F2F"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="20dp"/>
+
+    </LinearLayout>
+
+</ScrollView>

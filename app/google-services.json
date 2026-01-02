@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "813251320028",
+    "project_id": "universitymanagement-c509d",
+    "storage_bucket": "universitymanagement-c509d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:813251320028:android:f153bc41c9fee0852e3c19",
+        "android_client_info": {
+          "package_name": "com.example.universitymanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKeYVGe4KpxnI8dtEBS7Zf0yMxiuBmHTI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

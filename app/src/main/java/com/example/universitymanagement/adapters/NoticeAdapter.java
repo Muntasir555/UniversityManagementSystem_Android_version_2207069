@@ -14,14 +14,20 @@ public class NoticeAdapter extends RecyclerView.Adapter<NoticeAdapter.NoticeView
 
     private final List<Notice> noticeList;
     private final OnItemClickListener listener;
+    private final OnItemLongClickListener longListener;
 
     public interface OnItemClickListener {
         void onItemClick(Notice notice);
     }
 
-    public NoticeAdapter(List<Notice> noticeList, OnItemClickListener listener) {
+    public interface OnItemLongClickListener {
+        void onItemLongClick(Notice notice);
+    }
+
+    public NoticeAdapter(List<Notice> noticeList, OnItemClickListener listener, OnItemLongClickListener longListener) {
         this.noticeList = noticeList;
         this.listener = listener;
+        this.longListener = longListener;
     }
 
     @NonNull
@@ -34,7 +40,7 @@ public class NoticeAdapter extends RecyclerView.Adapter<NoticeAdapter.NoticeView
     @Override
     public void onBindViewHolder(@NonNull NoticeViewHolder holder, int position) {
         Notice notice = noticeList.get(position);
-        holder.bind(notice, listener);
+        holder.bind(notice, listener, longListener);
     }
 
     @Override
@@ -52,10 +58,15 @@ public class NoticeAdapter extends RecyclerView.Adapter<NoticeAdapter.NoticeView
             tvNoticeTitle = itemView.findViewById(R.id.tvNoticeTitle);
         }
 
-        public void bind(final Notice notice, final OnItemClickListener listener) {
+        public void bind(final Notice notice, final OnItemClickListener listener,
+                final OnItemLongClickListener longListener) {
             tvNoticeDate.setText(notice.getDate());
             tvNoticeTitle.setText(notice.getTitle());
             itemView.setOnClickListener(v -> listener.onItemClick(notice));
+            itemView.setOnLongClickListener(v -> {
+                longListener.onItemLongClick(notice);
+                return true;
+            });
         }
     }
 }

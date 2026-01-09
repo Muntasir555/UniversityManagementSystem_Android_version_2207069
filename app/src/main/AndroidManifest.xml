@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,7 +16,7 @@
         android:theme="@style/Theme.Universitymanagement"
         tools:targetApi="31">
         <activity
-            android:name=".MainActivity"
+            android:name=".controllers.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -21,10 +24,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".AdminLoginActivity" />
-        <activity android:name=".AdminDashboardActivity" />
-        <activity android:name=".FacultyLoginActivity" />
-        <activity android:name=".StudentLoginActivity" />
+        <activity android:name=".controllers.AdminLoginActivity" />
+        <activity android:name=".controllers.AdminAssignCourseActivity" />
+        <activity android:name=".controllers.AdminDashboardActivity" />
+        <activity android:name=".controllers.RegisterStudentActivity" />
+        <activity android:name=".controllers.RegisterFacultyActivity" />
+        <activity android:name=".controllers.AdminNoticeBoardActivity" />
+        <activity android:name=".controllers.ChangePasswordActivity" />
+        <activity android:name=".controllers.StudentListActivity" />
+        <activity android:name=".controllers.FacultyListActivity" />
+        <activity android:name=".controllers.FacultyLoginActivity" />
+        <activity android:name=".controllers.FacultyDashboardActivity" />
+        <activity android:name=".controllers.StudentDashboardActivity" />
+        <activity android:name=".controllers.StudentDashboardActivity" />
+        <activity android:name=".controllers.StudentLoginActivity" />
+        <activity android:name=".controllers.FacultyAddResultActivity" />
+        <activity android:name=".controllers.FacultyAttendanceActivity" />
+        <activity android:name=".controllers.FacultyAttendanceActivity" />
+        <activity android:name=".controllers.FacultyCoursesActivity" />
+        <activity android:name=".controllers.FacultyProfileActivity" />
+        <activity android:name=".controllers.RegisterFacultyActivity" />
+        <activity android:name=".controllers.RegisterStudentActivity" />
+        <activity android:name=".controllers.FacultyLoginActivity" />
+        <activity android:name=".controllers.StudentAttendanceActivity" />
+        <activity android:name=".controllers.StudentProfileActivity" />
+        <activity android:name=".controllers.StudentProfileActivity" />
+        <activity android:name=".controllers.StudentResultsActivity" />
+        <activity android:name=".controllers.StudentListActivity" />
     </application>
 
 </manifest>

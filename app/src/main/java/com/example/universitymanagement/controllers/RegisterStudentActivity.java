@@ -1,6 +1,8 @@
 package com.example.universitymanagement.controllers;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -20,15 +22,15 @@ public class RegisterStudentActivity extends AppCompatActivity {
     private Button btnRegister;
     private android.widget.ProgressBar progressBar;
     private StudentDatabase studentDatabase;
-    private android.os.Handler timeoutHandler = new android.os.Handler();
-    private Runnable timeoutRunnable;
+    private int registrationAttempt = 0;
+    private static final int MAX_RETRY_ATTEMPTS = 3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register_student);
 
-        studentDatabase = new StudentDatabase();
+        studentDatabase = new StudentDatabase(this);
 
         etName = findViewById(R.id.etName);
         etEmail = findViewById(R.id.etEmail);
@@ -39,16 +41,13 @@ public class RegisterStudentActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
 
         // Populate Department Spinner
-        String[] departments = { "CSE", "EEE", "Civil", "ME" };
+        String[] departments = { "CSE", "EEE", "Civil", "ME", "Physics", "Math", "Chemistry" };
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 departments);
         spDepartment.setAdapter(adapter);
 
         btnRegister.setOnClickListener(v -> registerStudent());
     }
-
-    // Flag to prevent double handling (Success vs Timeout)
-    private boolean isRequestHandled = false;
 
     private void registerStudent() {
         String name = etName.getText().toString().trim();
@@ -71,135 +70,118 @@ public class RegisterStudentActivity extends AppCompatActivity {
         btnRegister.setEnabled(false);
         btnRegister.setText("Registering...");
         progressBar.setVisibility(android.view.View.VISIBLE);
-        isRequestHandled = false;
+        registrationAttempt = 0;
 
-        // Setup Timeout (15 seconds) - This covers BOTH ID generation and Student
-        // saving
-        timeoutRunnable = () -> {
-            if (!isRequestHandled) {
-                isRequestHandled = true;
-                progressBar.setVisibility(android.view.View.GONE);
-                btnRegister.setEnabled(true);
-                btnRegister.setText("Register Student");
-
-                new androidx.appcompat.app.AlertDialog.Builder(RegisterStudentActivity.this)
-                        .setTitle("Request Timeout")
-                        .setMessage(
-                                "The server is taking too long to respond.\n\nCheck your internet connection or check the Student List to see if the registration went through.")
-                        .setPositiveButton("OK", null)
-                        .setIcon(android.R.drawable.ic_dialog_alert)
-                        .show();
-            }
-        };
-        timeoutHandler.postDelayed(timeoutRunnable, 15000);
-
-        // Check for duplicate email in the same department
-        studentDatabase.getStudentByEmailAndDepartment(email, department)
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (isRequestHandled)
-                        return;
-
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        isRequestHandled = true;
-                        if (timeoutHandler != null && timeoutRunnable != null) {
-                            timeoutHandler.removeCallbacks(timeoutRunnable);
-                        }
+        // Perform registration in background thread
+        new Thread(() -> {
+            try {
+                // Check for duplicate email
+                Student existing = studentDatabase.getStudentByEmailAndDepartment(email, department);
+                if (existing != null) {
+                    runOnUiThread(() -> {
                         progressBar.setVisibility(android.view.View.GONE);
                         btnRegister.setEnabled(true);
                         btnRegister.setText("Register Student");
-
+                        
                         new androidx.appcompat.app.AlertDialog.Builder(RegisterStudentActivity.this)
                                 .setTitle("Registration Failed")
                                 .setMessage("Change Email ID, it has already been used in this department.")
                                 .setPositiveButton("OK", null)
                                 .setIcon(android.R.drawable.ic_dialog_alert)
                                 .show();
-                        return;
-                    }
+                    });
+                    return;
+                }
 
-                    // Step 1: Generate ID
-                    studentDatabase.getNextStudentId(batch, department)
-                            .addOnSuccessListener(id -> {
-                                if (isRequestHandled)
-                                    return;
+                // Attempt registration with retry logic
+                attemptRegistration(name, email, department, batch, password);
 
-                                Student student = new Student(id, name, email, department, batch, password);
-
-                                // Step 2: Add Student to DB
-                                studentDatabase.addStudent(student)
-                                        .addOnCompleteListener(task -> {
-                                            if (isRequestHandled)
-                                                return;
-
-                                            isRequestHandled = true;
-                                            if (timeoutHandler != null && timeoutRunnable != null) {
-                                                timeoutHandler.removeCallbacks(timeoutRunnable);
-                                            }
-
-                                            progressBar.setVisibility(android.view.View.GONE);
-                                            btnRegister.setEnabled(true);
-                                            btnRegister.setText("Register Student");
-
-                                            if (task.isSuccessful()) {
-                                                if (isFinishing())
-                                                    return;
-                                                new androidx.appcompat.app.AlertDialog.Builder(this)
-                                                        .setTitle("Success")
-                                                        .setMessage("Student registered successfully.\nID: " + id)
-                                                        .setCancelable(false)
-                                                        .setPositiveButton("OK", (dialog, which) -> {
-                                                            dialog.dismiss();
-                                                            clearFields();
-                                                        })
-                                                        .setIcon(android.R.drawable.ic_dialog_info)
-                                                        .show();
-                                            } else {
-                                                String errorMsg = task.getException() != null
-                                                        ? task.getException().getMessage()
-                                                        : "Unknown error";
-                                                new androidx.appcompat.app.AlertDialog.Builder(this)
-                                                        .setTitle("Registration Failed")
-                                                        .setMessage("Error adding student: " + errorMsg)
-                                                        .setPositiveButton("OK", null)
-                                                        .setIcon(android.R.drawable.ic_dialog_alert)
-                                                        .show();
-                                            }
-                                        }); // End of addOnCompleteListener
-                            }) // End of addOnSuccessListener for getNextStudentId
-                            .addOnFailureListener(e -> {
-                                handleFailure(e);
-                            });
-                }) // End of addOnSuccessListener for getStudentByEmailAndDepartment
-                .addOnFailureListener(e -> {
-                    handleFailure(e);
+            } catch (Exception e) {
+                android.util.Log.e("RegisterStudent", "Registration error", e);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(android.view.View.GONE);
+                    btnRegister.setEnabled(true);
+                    btnRegister.setText("Register Student");
+                    Toast.makeText(RegisterStudentActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
+            }
+        }).start();
     }
 
-    private void handleFailure(Exception e) {
-        if (isRequestHandled)
-            return;
-        isRequestHandled = true;
-        if (timeoutHandler != null && timeoutRunnable != null) {
-            timeoutHandler.removeCallbacks(timeoutRunnable);
-        }
-        progressBar.setVisibility(android.view.View.GONE);
-        btnRegister.setEnabled(true);
-        btnRegister.setText("Register Student");
+    private void attemptRegistration(String name, String email, String department, String batch, String password) {
+        registrationAttempt++;
+        android.util.Log.d("RegisterStudent", "Registration attempt #" + registrationAttempt);
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Error")
-                .setMessage("An error occurred: " + e.getMessage())
-                .setPositiveButton("OK", null)
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .show();
-    }
+        // Generate ID
+        String id = studentDatabase.getNextStudentId(batch, department);
+        android.util.Log.d("RegisterStudent", "Generated ID: " + id);
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (timeoutHandler != null && timeoutRunnable != null) {
-            timeoutHandler.removeCallbacks(timeoutRunnable);
+        // Check if ID already exists (race condition protection)
+        boolean exists = studentDatabase.isStudentIdExists(id);
+        
+        if (exists) {
+            android.util.Log.w("RegisterStudent", "ID " + id + " already exists, retrying...");
+            if (registrationAttempt < MAX_RETRY_ATTEMPTS) {
+                // Retry with new ID
+                attemptRegistration(name, email, department, batch, password);
+                return;
+            } else {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(android.view.View.GONE);
+                    btnRegister.setEnabled(true);
+                    btnRegister.setText("Register Student");
+                    Toast.makeText(RegisterStudentActivity.this,
+                            "Failed to generate unique ID after " + MAX_RETRY_ATTEMPTS + " attempts. Please try again.",
+                            Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
         }
+
+        // ID is unique, proceed with registration
+        Student student = new Student(id, name, email, department, batch, password);
+        boolean success = studentDatabase.addStudent(student);
+
+        runOnUiThread(() -> {
+            progressBar.setVisibility(android.view.View.GONE);
+            btnRegister.setEnabled(true);
+            btnRegister.setText("Register Student");
+
+            if (success) {
+                String attemptInfo = registrationAttempt > 1 ? " (after " + registrationAttempt + " attempts)" : "";
+                android.util.Log.d("RegisterStudent", "Student registered successfully: " + id + attemptInfo);
+                
+                Toast.makeText(RegisterStudentActivity.this,
+                        "✓ Student registered successfully!\nID: " + id,
+                        Toast.LENGTH_LONG).show();
+
+                String successMsg = "Student registered successfully!\n\n" +
+                        "Student ID: " + id + "\n" +
+                        "Name: " + name + "\n" +
+                        "Department: " + department + "\n" +
+                        "Batch: " + batch;
+
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("✓ Registration Successful")
+                        .setMessage(successMsg)
+                        .setCancelable(false)
+                        .setPositiveButton("OK", (dialog, which) -> {
+                            dialog.dismiss();
+                            clearFields();
+                            registrationAttempt = 0;
+                        })
+                        .setIcon(android.R.drawable.ic_dialog_info)
+                        .show();
+            } else {
+                android.util.Log.e("RegisterStudent", "Registration failed for: " + id);
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Registration Failed")
+                        .setMessage("Error adding student to database. Please try again.")
+                        .setPositiveButton("OK", null)
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .show();
+            }
+        });
     }
 
     private void clearFields() {

@@ -40,43 +40,33 @@ public class StudentAttendanceActivity extends AppCompatActivity {
         rvAttendanceList = findViewById(R.id.rvAttendanceList);
         rvAttendanceList.setLayoutManager(new LinearLayoutManager(this));
 
-        attendanceDatabase = new AttendanceDatabase();
-        subjectDatabase = new SubjectDatabase();
+        attendanceDatabase = new AttendanceDatabase(this);
+        subjectDatabase = new SubjectDatabase(this);
 
         loadData();
     }
 
     private void loadData() {
-        // First fetch all subjects to map ID -> Name
-        subjectDatabase.getAllSubjects().addOnSuccessListener(subjectSnapshots -> {
+        new Thread(() -> {
+            // First fetch all subjects to map ID -> Name
+            List<Subject> subjects = subjectDatabase.getAllSubjects();
             Map<String, String> subjectMap = new HashMap<>();
-            List<Subject> subjects = subjectSnapshots.toObjects(Subject.class);
             for (Subject s : subjects) {
                 subjectMap.put(s.getId(), s.getName());
             }
 
             // Then fetch attendance
-            fetchAttendance(subjectMap);
+            Student student = Session.currentStudent;
+            List<Attendance> attendanceList = attendanceDatabase.getAttendanceByStudentId(student.getId());
 
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error loading subjects: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
-    }
+            runOnUiThread(() -> {
+                if (attendanceList.isEmpty()) {
+                    Toast.makeText(this, "No attendance records found.", Toast.LENGTH_SHORT).show();
+                }
 
-    private void fetchAttendance(Map<String, String> subjectMap) {
-        Student student = Session.currentStudent;
-        attendanceDatabase.getAttendanceByStudentId(student.getId()).addOnSuccessListener(attendanceSnapshots -> {
-            List<Attendance> attendanceList = attendanceSnapshots.toObjects(Attendance.class);
-
-            if (attendanceList.isEmpty()) {
-                Toast.makeText(this, "No attendance records found.", Toast.LENGTH_SHORT).show();
-            }
-
-            StudentAttendanceAdapter adapter = new StudentAttendanceAdapter(attendanceList, subjectMap);
-            rvAttendanceList.setAdapter(adapter);
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error loading attendance: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
+                StudentAttendanceAdapter adapter = new StudentAttendanceAdapter(attendanceList, subjectMap);
+                rvAttendanceList.setAdapter(adapter);
+            });
+        }).start();
     }
 }

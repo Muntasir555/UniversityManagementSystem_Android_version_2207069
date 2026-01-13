@@ -11,6 +11,8 @@ import com.example.universitymanagement.database.FacultyDatabase;
 
 public class FacultyListActivity extends AppCompatActivity {
 
+    private FacultyDatabase db;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -25,7 +27,7 @@ public class FacultyListActivity extends AppCompatActivity {
                 android.R.layout.simple_spinner_dropdown_item, departments);
         spDepartmentFilter.setAdapter(adapter);
 
-        FacultyDatabase db = new FacultyDatabase();
+        db = new FacultyDatabase(this);
 
         spDepartmentFilter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
@@ -33,9 +35,9 @@ public class FacultyListActivity extends AppCompatActivity {
                     long id) {
                 String selectedDept = departments[position];
                 if (selectedDept.equals("All")) {
-                    loadAllFaculty(db, rvFacultyList);
+                    loadAllFaculty(rvFacultyList);
                 } else {
-                    loadFacultyByDept(db, rvFacultyList, selectedDept);
+                    loadFacultyByDept(rvFacultyList, selectedDept);
                 }
             }
 
@@ -45,47 +47,57 @@ public class FacultyListActivity extends AppCompatActivity {
         });
     }
 
-    private void loadAllFaculty(FacultyDatabase db, RecyclerView rv) {
-        db.getAllFaculty().addOnSuccessListener(queryDocumentSnapshots -> {
-            java.util.List<com.example.universitymanagement.models.Faculty> facultyList = queryDocumentSnapshots
-                    .toObjects(com.example.universitymanagement.models.Faculty.class);
-            FacultyAdapter adapter = new FacultyAdapter(facultyList,
-                    faculty -> showDeleteConfirmation(db, faculty, rv));
-            rv.setAdapter(adapter);
-        });
+    private void loadAllFaculty(RecyclerView rv) {
+        new Thread(() -> {
+            java.util.List<com.example.universitymanagement.models.Faculty> facultyList = db.getAllFaculty();
+            
+            runOnUiThread(() -> {
+                FacultyAdapter adapter = new FacultyAdapter(facultyList,
+                        faculty -> showDeleteConfirmation(faculty, rv));
+                rv.setAdapter(adapter);
+            });
+        }).start();
     }
 
-    private void loadFacultyByDept(FacultyDatabase db, RecyclerView rv, String dept) {
-        db.getFacultyByDepartment(dept).addOnSuccessListener(queryDocumentSnapshots -> {
-            java.util.List<com.example.universitymanagement.models.Faculty> facultyList = queryDocumentSnapshots
-                    .toObjects(com.example.universitymanagement.models.Faculty.class);
-            FacultyAdapter adapter = new FacultyAdapter(facultyList,
-                    faculty -> showDeleteConfirmation(db, faculty, rv));
-            rv.setAdapter(adapter);
-        });
+    private void loadFacultyByDept(RecyclerView rv, String dept) {
+        new Thread(() -> {
+            java.util.List<com.example.universitymanagement.models.Faculty> facultyList = db.getFacultyByDepartment(dept);
+            
+            runOnUiThread(() -> {
+                FacultyAdapter adapter = new FacultyAdapter(facultyList,
+                        faculty -> showDeleteConfirmation(faculty, rv));
+                rv.setAdapter(adapter);
+            });
+        }).start();
     }
 
-    private void showDeleteConfirmation(FacultyDatabase db, com.example.universitymanagement.models.Faculty faculty,
+    private void showDeleteConfirmation(com.example.universitymanagement.models.Faculty faculty,
             RecyclerView rv) {
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Delete Faculty")
                 .setMessage("Do you really want to delete " + faculty.getName() + "?")
                 .setPositiveButton("Yes", (dialog, which) -> {
-                    db.deleteFaculty(faculty.getId()).addOnSuccessListener(aVoid -> {
-                        android.widget.Toast.makeText(FacultyListActivity.this, "Faculty deleted",
-                                android.widget.Toast.LENGTH_SHORT).show();
-                        // Refresh the list
-                        android.widget.Spinner spDepartmentFilter = findViewById(R.id.spDepartmentFilter);
-                        String selectedDept = spDepartmentFilter.getSelectedItem().toString();
-                        if (selectedDept.equals("All")) {
-                            loadAllFaculty(db, rv);
-                        } else {
-                            loadFacultyByDept(db, rv, selectedDept);
-                        }
-                    }).addOnFailureListener(e -> {
-                        android.widget.Toast.makeText(FacultyListActivity.this, "Error deleting faculty",
-                                android.widget.Toast.LENGTH_SHORT).show();
-                    });
+                    new Thread(() -> {
+                        boolean success = db.deleteFaculty(faculty.getId());
+                        
+                        runOnUiThread(() -> {
+                            if (success) {
+                                android.widget.Toast.makeText(FacultyListActivity.this, "Faculty deleted",
+                                        android.widget.Toast.LENGTH_SHORT).show();
+                                // Refresh the list
+                                android.widget.Spinner spDepartmentFilter = findViewById(R.id.spDepartmentFilter);
+                                String selectedDept = spDepartmentFilter.getSelectedItem().toString();
+                                if (selectedDept.equals("All")) {
+                                    loadAllFaculty(rv);
+                                } else {
+                                    loadFacultyByDept(rv, selectedDept);
+                                }
+                            } else {
+                                android.widget.Toast.makeText(FacultyListActivity.this, "Error deleting faculty",
+                                        android.widget.Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }).start();
                 })
                 .setNegativeButton("No", null)
                 .show();

@@ -20,15 +20,13 @@ public class RegisterFacultyActivity extends AppCompatActivity {
     private Button btnRegister;
     private android.widget.ProgressBar progressBar;
     private FacultyDatabase facultyDatabase;
-    private android.os.Handler timeoutHandler = new android.os.Handler();
-    private Runnable timeoutRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register_faculty);
 
-        facultyDatabase = new FacultyDatabase();
+        facultyDatabase = new FacultyDatabase(this);
 
         etName = findViewById(R.id.etName);
         etEmail = findViewById(R.id.etEmail);
@@ -45,9 +43,6 @@ public class RegisterFacultyActivity extends AppCompatActivity {
 
         btnRegister.setOnClickListener(v -> registerFaculty());
     }
-
-    // Flag to prevent double handling (Success vs Timeout)
-    private boolean isRequestHandled = false;
 
     private void registerFaculty() {
         String name = etName.getText().toString().trim();
@@ -69,110 +64,59 @@ public class RegisterFacultyActivity extends AppCompatActivity {
         btnRegister.setEnabled(false);
         btnRegister.setText("Registering...");
         progressBar.setVisibility(android.view.View.VISIBLE);
-        isRequestHandled = false;
 
         Faculty faculty = new Faculty(name, email, department, password);
         faculty.setId(java.util.UUID.randomUUID().toString());
 
-        // Setup Timeout (15 seconds)
-        timeoutRunnable = () -> {
-            if (!isRequestHandled) {
-                isRequestHandled = true;
-                progressBar.setVisibility(android.view.View.GONE);
-                btnRegister.setEnabled(true);
-                btnRegister.setText("Register Faculty");
+        new Thread(() -> {
+            // Check for duplicate email in the same department
+            Faculty existingFaculty = facultyDatabase.getFacultyByEmailAndDepartment(email, department);
 
-                new androidx.appcompat.app.AlertDialog.Builder(RegisterFacultyActivity.this)
-                        .setTitle("Request Timeout")
-                        .setMessage(
-                                "The server is taking too long to respond.\n\nCheck your internet connection or check the Faculty List to see if the registration went through.")
-                        .setPositiveButton("OK", null)
-                        .setIcon(android.R.drawable.ic_dialog_alert)
-                        .show();
-            }
-        };
-        timeoutHandler.postDelayed(timeoutRunnable, 15000);
+            runOnUiThread(() -> {
+                if (existingFaculty != null) {
+                    progressBar.setVisibility(android.view.View.GONE);
+                    btnRegister.setEnabled(true);
+                    btnRegister.setText("Register Faculty");
 
-        // Check for duplicate email in the same department
-        facultyDatabase.getFacultyByEmailAndDepartment(email, department)
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (isRequestHandled)
-                        return;
+                    new androidx.appcompat.app.AlertDialog.Builder(RegisterFacultyActivity.this)
+                            .setTitle("Registration Failed")
+                            .setMessage("Change Email ID, it has already been used in this department.")
+                            .setPositiveButton("OK", null)
+                            .setIcon(android.R.drawable.ic_dialog_alert)
+                            .show();
+                    return;
+                }
 
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        isRequestHandled = true;
-                        if (timeoutHandler != null && timeoutRunnable != null) {
-                            timeoutHandler.removeCallbacks(timeoutRunnable);
-                        }
+                // Perform registration in a background thread
+                new Thread(() -> {
+                    boolean success = facultyDatabase.addFaculty(faculty);
+
+                    runOnUiThread(() -> {
+                        // UI Updates: Hide loading
                         progressBar.setVisibility(android.view.View.GONE);
                         btnRegister.setEnabled(true);
                         btnRegister.setText("Register Faculty");
 
-                        new androidx.appcompat.app.AlertDialog.Builder(RegisterFacultyActivity.this)
-                                .setTitle("Registration Failed")
-                                .setMessage("Change Email ID, it has already been used in this department.")
-                                .setPositiveButton("OK", null)
-                                .setIcon(android.R.drawable.ic_dialog_alert)
-                                .show();
-                        return;
-                    }
-
-                    facultyDatabase.addFaculty(faculty)
-                            .addOnCompleteListener(task -> {
-                                if (isRequestHandled)
-                                    return; // Already handled by timeout
-
-                                isRequestHandled = true;
-                                if (timeoutHandler != null && timeoutRunnable != null) {
-                                    timeoutHandler.removeCallbacks(timeoutRunnable);
-                                }
-
-                                // UI Updates: Hide loading
-                                progressBar.setVisibility(android.view.View.GONE);
-                                btnRegister.setEnabled(true);
-                                btnRegister.setText("Register Faculty");
-
-                                if (task.isSuccessful()) {
-                                    showSuccessDialog();
-                                } else {
-                                    String errorMsg = task.getException() != null ? task.getException().getMessage()
-                                            : "Unknown error";
-                                    new androidx.appcompat.app.AlertDialog.Builder(this)
-                                            .setTitle("Registration Failed")
-                                            .setMessage("Error: " + errorMsg)
-                                            .setPositiveButton("OK", null)
-                                            .setIcon(android.R.drawable.ic_dialog_alert)
-                                            .show();
-                                }
-                            });
-                })
-                .addOnFailureListener(e -> {
-                    handleFailure(e);
-                });
-    }
-
-    private void handleFailure(Exception e) {
-        if (isRequestHandled)
-            return;
-        isRequestHandled = true;
-        if (timeoutHandler != null && timeoutRunnable != null) {
-            timeoutHandler.removeCallbacks(timeoutRunnable);
-        }
-        progressBar.setVisibility(android.view.View.GONE);
-        btnRegister.setEnabled(true);
-        btnRegister.setText("Register Faculty");
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Error")
-                .setMessage("An error occurred: " + e.getMessage())
-                .setPositiveButton("OK", null)
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .show();
+                        if (success) {
+                            showSuccessDialog();
+                        } else {
+                            new androidx.appcompat.app.AlertDialog.Builder(this)
+                                    .setTitle("Registration Failed")
+                                    .setMessage("An error occurred while registering the faculty.")
+                                    .setPositiveButton("OK", null)
+                                    .setIcon(android.R.drawable.ic_dialog_alert)
+                                    .show();
+                        }
+                    });
+                }).start();
+            });
+        }).start();
     }
 
     private void showSuccessDialog() {
-        if (isFinishing())
+        if (isFinishing() || isDestroyed())
             return;
+        
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Success")
                 .setMessage("Faculty registered successfully")
@@ -183,14 +127,6 @@ public class RegisterFacultyActivity extends AppCompatActivity {
                 })
                 .setIcon(android.R.drawable.ic_dialog_info)
                 .show();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (timeoutHandler != null && timeoutRunnable != null) {
-            timeoutHandler.removeCallbacks(timeoutRunnable);
-        }
     }
 
     private void clearFields() {

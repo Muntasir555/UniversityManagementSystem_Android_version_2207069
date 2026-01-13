@@ -9,31 +9,36 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.universitymanagement.R;
+import com.example.universitymanagement.database.StudentDatabase;
+import com.example.universitymanagement.models.Student;
 import com.example.universitymanagement.util.Session;
 
 public class StudentDashboardActivity extends AppCompatActivity {
+
+    private TextView cgpaLabel;
+    private StudentDatabase studentDatabase;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_student_dashboard);
 
-        // Initialize Views
-        TextView cgpaLabel = findViewById(R.id.cgpaLabel);
-        Button btnProfile = findViewById(R.id.btnProfile);
-        Button btnResults = findViewById(R.id.btnResults);
-        Button btnAttendance = findViewById(R.id.btnAttendance);
-        Button btnLogout = findViewById(R.id.btnLogout);
-
-        // Set initial CGPA (This should eventually come from the database)
-        // Set initial CGPA
-        if (Session.currentStudent != null) {
-            cgpaLabel.setText(String.format("%.2f", Session.currentStudent.getCgpa()));
-        } else {
+        // Check session
+        if (Session.currentStudent == null) {
             Toast.makeText(this, "Session Expired", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
+
+        // Initialize Database
+        studentDatabase = new StudentDatabase(this);
+
+        // Initialize Views
+        cgpaLabel = findViewById(R.id.cgpaLabel);
+        Button btnProfile = findViewById(R.id.btnProfile);
+        Button btnResults = findViewById(R.id.btnResults);
+        Button btnAttendance = findViewById(R.id.btnAttendance);
+        Button btnLogout = findViewById(R.id.btnLogout);
 
         // Set Click Listeners
         btnProfile.setOnClickListener(v -> {
@@ -55,5 +60,29 @@ public class StudentDashboardActivity extends AppCompatActivity {
             startActivity(intent);
             finish();
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh CGPA from database every time the dashboard is shown
+        loadCGPA();
+    }
+
+    private void loadCGPA() {
+        new Thread(() -> {
+            // Fetch fresh student data from database
+            Student freshStudent = studentDatabase.getStudent(Session.currentStudent.getId());
+            
+            if (freshStudent != null) {
+                // Update session with fresh CGPA
+                Session.currentStudent.setCgpa(freshStudent.getCgpa());
+                
+                // Update UI
+                runOnUiThread(() -> {
+                    cgpaLabel.setText(String.format("%.2f", freshStudent.getCgpa()));
+                });
+            }
+        }).start();
     }
 }

@@ -5,9 +5,10 @@ public class Notice {
     private String title;
     private String content;
     private String date;
+    private String postedBy;
 
     public Notice() {
-        // Required for Firestore
+        // Required for database operations
     }
 
     public Notice(String title, String content, String date) {
@@ -21,6 +22,14 @@ public class Notice {
         this.title = title;
         this.content = content;
         this.date = date;
+    }
+
+    public Notice(String id, String title, String content, String date, String postedBy) {
+        this.id = id;
+        this.title = title;
+        this.content = content;
+        this.date = date;
+        this.postedBy = postedBy;
     }
 
     public String getId() {
@@ -53,5 +62,13 @@ public class Notice {
 
     public void setDate(String date) {
         this.date = date;
+    }
+
+    public String getPostedBy() {
+        return postedBy;
+    }
+
+    public void setPostedBy(String postedBy) {
+        this.postedBy = postedBy;
     }
 }

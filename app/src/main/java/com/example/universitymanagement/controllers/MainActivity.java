@@ -15,6 +15,8 @@ import com.example.universitymanagement.adapters.NoticeAdapter;
 import com.example.universitymanagement.database.NoticeDatabase;
 import com.example.universitymanagement.models.Notice;
 
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
     @Override
@@ -39,16 +41,16 @@ public class MainActivity extends AppCompatActivity {
         RecyclerView rvNoticeBoard = findViewById(R.id.rvNoticeBoard);
         rvNoticeBoard.setLayoutManager(new LinearLayoutManager(this));
 
-        NoticeDatabase noticeDatabase = new NoticeDatabase();
-        noticeDatabase.getAllNotices().addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null) {
-                java.util.List<Notice> noticeList = task.getResult().toObjects(Notice.class);
+        // Load notices in background thread
+        new Thread(() -> {
+            NoticeDatabase noticeDatabase = new NoticeDatabase(this);
+            List<Notice> noticeList = noticeDatabase.getAllNotices();
+            
+            runOnUiThread(() -> {
                 NoticeAdapter adapter = new NoticeAdapter(noticeList, this::showNoticeDetails, null);
                 rvNoticeBoard.setAdapter(adapter);
-            } else {
-                // Handle error or show empty state
-            }
-        });
+            });
+        }).start();
     }
 
     private void showNoticeDetails(Notice notice) {

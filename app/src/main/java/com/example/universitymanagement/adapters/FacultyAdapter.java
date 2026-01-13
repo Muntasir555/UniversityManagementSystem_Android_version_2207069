@@ -8,17 +8,22 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.universitymanagement.R;
 import com.example.universitymanagement.models.Faculty;
 
 import java.util.List;
 
 public class FacultyAdapter extends RecyclerView.Adapter<FacultyAdapter.FacultyViewHolder> {
 
-    private final List<Faculty> facultyList;
+    public interface OnItemClickListener {
+        void onItemClick(Faculty faculty);
+    }
 
-    public FacultyAdapter(List<Faculty> facultyList) {
+    private final List<Faculty> facultyList;
+    private final OnItemClickListener listener;
+
+    public FacultyAdapter(List<Faculty> facultyList, OnItemClickListener listener) {
         this.facultyList = facultyList;
+        this.listener = listener;
     }
 
     @NonNull
@@ -34,6 +39,7 @@ public class FacultyAdapter extends RecyclerView.Adapter<FacultyAdapter.FacultyV
         Faculty faculty = facultyList.get(position);
         holder.name.setText(faculty.getName());
         holder.details.setText(String.format("Email: %s | Dept: %s", faculty.getEmail(), faculty.getDepartment()));
+        holder.itemView.setOnClickListener(v -> listener.onItemClick(faculty));
     }
 
     @Override

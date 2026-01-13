@@ -62,4 +62,11 @@ public class FacultyDatabase {
                 .document(facultyId)
                 .delete();
     }
+
+    public Task<QuerySnapshot> getFacultyByEmailAndDepartment(String email, String department) {
+        return db.collection(Constants.COLLECTION_FACULTY)
+                .whereEqualTo("email", email)
+                .whereEqualTo("department", department)
+                .get();
+    }
 }

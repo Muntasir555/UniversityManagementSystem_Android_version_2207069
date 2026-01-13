@@ -26,19 +26,23 @@ public class StudentListActivity extends AppCompatActivity {
 
     private Spinner spDepartmentFilter, spBatchFilter;
     private RecyclerView rvStudentList;
+    private android.widget.ProgressBar progressBar;
+    private android.widget.TextView tvEmptyState;
     private StudentDatabase studentDatabase;
-    private List<Student> allStudentsCache = new ArrayList<>(); // To avoid fetching for batches repeatedly
+    private List<Student> allStudentsCache = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_student_list);
 
-        studentDatabase = new StudentDatabase();
+        studentDatabase = new StudentDatabase(this);
 
         spDepartmentFilter = findViewById(R.id.spDepartmentFilter);
         spBatchFilter = findViewById(R.id.spBatchFilter);
         rvStudentList = findViewById(R.id.rvStudentList);
+        progressBar = findViewById(R.id.progressBar);
+        tvEmptyState = findViewById(R.id.tvEmptyState);
 
         rvStudentList.setLayoutManager(new LinearLayoutManager(this));
 
@@ -47,7 +51,7 @@ public class StudentListActivity extends AppCompatActivity {
     }
 
     private void setupDepartmentFilter() {
-        String[] departments = { "All", "CSE", "EEE", "Civil", "ME" };
+        String[] departments = { "All", "CSE", "EEE", "Civil", "ME", "Physics", "Math", "Chemistry" };
         ArrayAdapter<String> deptAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 departments);
         spDepartmentFilter.setAdapter(deptAdapter);
@@ -65,42 +69,60 @@ public class StudentListActivity extends AppCompatActivity {
     }
 
     private void loadBatchesAndInitialData() {
-        // Fetch all students initially to extract distinct batches
-        // In a large scale app, this would be a separate aggregation query or distinct
-        // collection
-        studentDatabase.getAllStudents().addOnSuccessListener(queryDocumentSnapshots -> {
-            allStudentsCache = queryDocumentSnapshots.toObjects(Student.class);
+        // Show loading indicator
+        progressBar.setVisibility(View.VISIBLE);
+        rvStudentList.setVisibility(View.GONE);
+        tvEmptyState.setVisibility(View.GONE);
+        
+        android.util.Log.d("StudentList", "Loading students...");
+        
+        // Fetch all students in background thread
+        new Thread(() -> {
+            List<Student> students = studentDatabase.getAllStudents();
+            
+            runOnUiThread(() -> {
+                android.util.Log.d("StudentList", "Students loaded: " + students.size());
+                
+                allStudentsCache = students;
 
-            Set<String> batches = new HashSet<>();
-            for (Student s : allStudentsCache) {
-                if (s.getBatch() != null)
-                    batches.add(s.getBatch());
-            }
-            List<String> batchList = new ArrayList<>(batches);
-            Collections.sort(batchList);
-            batchList.add(0, "All");
+                // Hide loading, show RecyclerView
+                progressBar.setVisibility(View.GONE);
+                rvStudentList.setVisibility(View.VISIBLE);
 
-            ArrayAdapter<String> batchAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-                    batchList);
-            spBatchFilter.setAdapter(batchAdapter);
-
-            spBatchFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    filterStudents();
+                if (allStudentsCache.isEmpty()) {
+                    tvEmptyState.setVisibility(View.VISIBLE);
+                    android.util.Log.d("StudentList", "No students in database");
+                    return;
                 }
 
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {
+                Set<String> batches = new HashSet<>();
+                for (Student s : allStudentsCache) {
+                    if (s.getBatch() != null)
+                        batches.add(s.getBatch());
                 }
+                List<String> batchList = new ArrayList<>(batches);
+                Collections.sort(batchList);
+                batchList.add(0, "All");
+
+                ArrayAdapter<String> batchAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+                        batchList);
+                spBatchFilter.setAdapter(batchAdapter);
+
+                spBatchFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        filterStudents();
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                    }
+                });
+
+                // Initial Filter
+                filterStudents();
             });
-
-            // Initial Filter
-            filterStudents();
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error loading data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
+        }).start();
     }
 
     private void filterStudents() {
@@ -111,10 +133,6 @@ public class StudentListActivity extends AppCompatActivity {
         String batch = spBatchFilter.getSelectedItem().toString();
 
         List<Student> filteredList = new ArrayList<>();
-
-        // Since we have allStudentsCache, we can filter locally to save reads and be
-        // faster!
-        // This mirrors logic: if (isDeptAll && isBatchAll) etc.
 
         for (Student s : allStudentsCache) {
             boolean deptMatch = dept.equals("All")
@@ -128,5 +146,15 @@ public class StudentListActivity extends AppCompatActivity {
 
         StudentListAdapter adapter = new StudentListAdapter(filteredList);
         rvStudentList.setAdapter(adapter);
+        
+        // Show/hide empty state
+        if (filteredList.isEmpty()) {
+            tvEmptyState.setText("No students found for selected filters");
+            tvEmptyState.setVisibility(View.VISIBLE);
+        } else {
+            tvEmptyState.setVisibility(View.GONE);
+        }
+        
+        android.util.Log.d("StudentList", "Filtered students: " + filteredList.size() + " (Dept: " + dept + ", Batch: " + batch + ")");
     }
 }

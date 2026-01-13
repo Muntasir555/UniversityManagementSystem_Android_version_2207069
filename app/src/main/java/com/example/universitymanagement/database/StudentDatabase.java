@@ -1,127 +1,352 @@
 package com.example.universitymanagement.database;
 
-import com.example.universitymanagement.models.Student;
-import com.example.universitymanagement.util.Constants;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QuerySnapshot;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
-import com.example.universitymanagement.util.DBUtil;
+import com.example.universitymanagement.models.Student;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class StudentDatabase {
-    private final FirebaseFirestore db;
+    private static final String TAG = "StudentDatabase";
+    private final DatabaseHelper dbHelper;
 
-    public StudentDatabase() {
-        db = DBUtil.getInstance().getDb();
+    public StudentDatabase(Context context) {
+        dbHelper = DatabaseHelper.getInstance(context);
     }
 
-    public Task<Void> addStudent(Student student) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .document(student.getId())
-                .set(student);
+    public boolean addStudent(Student student) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_ID, student.getId());
+        values.put(DatabaseHelper.COLUMN_STUDENT_NAME, student.getName());
+        values.put(DatabaseHelper.COLUMN_STUDENT_EMAIL, student.getEmail());
+        values.put(DatabaseHelper.COLUMN_STUDENT_DEPARTMENT, student.getDepartment());
+        values.put(DatabaseHelper.COLUMN_STUDENT_BATCH, student.getBatch());
+        values.put(DatabaseHelper.COLUMN_STUDENT_CGPA, student.getCgpa());
+        values.put(DatabaseHelper.COLUMN_STUDENT_PASSWORD, student.getPassword());
+
+        try {
+            long result = db.insertOrThrow(DatabaseHelper.TABLE_STUDENTS, null, values);
+            if (result != -1) {
+                Log.d(TAG, "Student added successfully: " + student.getId());
+                return true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error adding student: " + student.getId(), e);
+        }
+        return false;
     }
 
-    public Task<DocumentSnapshot> getStudent(String studentId) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .document(studentId)
-                .get();
+    public Student getStudent(String studentId) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Student student = null;
+
+        String selection = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] selectionArgs = {studentId};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null, null
+        );
+
+        if (cursor != null && cursor.moveToFirst()) {
+            student = cursorToStudent(cursor);
+            cursor.close();
+        } else if (cursor != null) {
+            cursor.close();
+        }
+
+        return student;
     }
 
-    public Task<QuerySnapshot> getAllStudents() {
-        return db.collection(Constants.COLLECTION_STUDENTS).get();
+    public List<Student> getAllStudents() {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        List<Student> students = new ArrayList<>();
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null, null, null, null, null,
+                DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + ", " + DatabaseHelper.COLUMN_STUDENT_BATCH
+        );
+
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                students.add(cursorToStudent(cursor));
+            }
+            cursor.close();
+        }
+
+        Log.d(TAG, "Retrieved " + students.size() + " students");
+        return students;
     }
 
-    // Note: Firestore doesn't support distinct queries natively.
-    // We fetch all students and filter locally, or maintain a separate batches
-    // collection.
-    // For now, fetching all students to extract batches.
-    public Task<QuerySnapshot> getAllStudentsForBatches() {
-        return db.collection(Constants.COLLECTION_STUDENTS).get();
+    public List<Student> getStudentsByDepartmentAndBatch(String department, String batch) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        List<Student> students = new ArrayList<>();
+
+        String selection = DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + " = ? AND " +
+                DatabaseHelper.COLUMN_STUDENT_BATCH + " = ?";
+        String[] selectionArgs = {department, batch};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null,
+                DatabaseHelper.COLUMN_STUDENT_NAME
+        );
+
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                students.add(cursorToStudent(cursor));
+            }
+            cursor.close();
+        }
+
+        return students;
     }
 
-    public Task<QuerySnapshot> getStudentsByDepartmentAndBatch(String dept, String batch) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .whereEqualTo("department", dept)
-                .whereEqualTo("batch", batch)
-                .get();
+    public List<Student> getStudentsByDepartment(String department) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        List<Student> students = new ArrayList<>();
+
+        String selection = DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + " = ?";
+        String[] selectionArgs = {department};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null,
+                DatabaseHelper.COLUMN_STUDENT_NAME
+        );
+
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                students.add(cursorToStudent(cursor));
+            }
+            cursor.close();
+        }
+
+        return students;
     }
 
-    public Task<QuerySnapshot> getStudentsByDepartment(String dept) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .whereEqualTo("department", dept)
-                .get();
+    public List<Student> getStudentsByBatch(String batch) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        List<Student> students = new ArrayList<>();
+
+        String selection = DatabaseHelper.COLUMN_STUDENT_BATCH + " = ?";
+        String[] selectionArgs = {batch};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null,
+                DatabaseHelper.COLUMN_STUDENT_NAME
+        );
+
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                students.add(cursorToStudent(cursor));
+            }
+            cursor.close();
+        }
+
+        return students;
     }
 
-    public Task<QuerySnapshot> getStudentsByBatch(String batch) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .whereEqualTo("batch", batch)
-                .get();
-    }
+    public String getNextStudentId(String batch, String department) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        String prefix = batch + department;
+        int maxId = 0;
 
-    public Task<String> getNextStudentId(String batch, String department) {
-        // Use getStudentsByDepartment instead of composite query to avoid missing index
-        // errors
-        // This prevents the "infinite loading" or "rounding" issue
-        return getStudentsByDepartment(department)
-                .continueWith(task -> {
-                    if (!task.isSuccessful()) {
-                        throw task.getException();
-                    }
+        // Query students with matching department and batch
+        String selection = DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + " = ? AND " +
+                DatabaseHelper.COLUMN_STUDENT_BATCH + " = ?";
+        String[] selectionArgs = {department, batch};
 
-                    int maxId = 0;
-                    for (DocumentSnapshot document : task.getResult()) {
-                        // Filter by batch manually since we are only querying by department
-                        String docBatch = document.getString("batch");
-                        if (docBatch == null || !docBatch.equals(batch)) {
-                            continue;
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                new String[]{DatabaseHelper.COLUMN_ID},
+                selection,
+                selectionArgs,
+                null, null, null
+        );
+
+        if (cursor != null) {
+            while (cursor.moveToNext()) {
+                String id = cursor.getString(0);
+                if (id != null && id.startsWith(prefix) && id.length() > prefix.length()) {
+                    try {
+                        String sequenceStr = id.substring(prefix.length());
+                        int sequence = Integer.parseInt(sequenceStr);
+                        if (sequence > maxId) {
+                            maxId = sequence;
                         }
-
-                        String id = document.getId();
-                        // Expected format: 22CSE001 (Batch + Dept + Sequence)
-                        // We need to extract the last 3 digits
-                        try {
-                            // Only consider IDs that start with the correct prefix "BatchDept"
-                            String prefix = batch + department;
-                            if (id.startsWith(prefix)) {
-                                String sequenceStr = id.substring(prefix.length());
-                                int sequence = Integer.parseInt(sequenceStr);
-                                if (sequence > maxId) {
-                                    maxId = sequence;
-                                }
-                            }
-                        } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
-                            // Ignore invalid IDs
-                        }
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "Invalid ID format: " + id);
                     }
+                }
+            }
+            cursor.close();
+        }
 
-                    // Generate next ID padded with zeros (e.g., 001, 002)
-                    return String.format("%s%s%03d", batch, department, maxId + 1);
-                });
+        String nextId = String.format("%s%s%03d", batch, department, maxId + 1);
+        Log.d(TAG, "Generated next ID: " + nextId + " (maxId was: " + maxId + ")");
+        return nextId;
     }
 
-    public Task<Void> updateCGPA(String studentId, double cgpa) {
-        return db.collection(Constants.COLLECTION_STUDENTS).document(studentId)
-                .update("cgpa", cgpa);
+    public boolean isStudentIdExists(String studentId) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        
+        String selection = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] selectionArgs = {studentId};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                new String[]{DatabaseHelper.COLUMN_ID},
+                selection,
+                selectionArgs,
+                null, null, null
+        );
+
+        boolean exists = cursor != null && cursor.getCount() > 0;
+        if (cursor != null) {
+            cursor.close();
+        }
+
+        Log.d(TAG, "Checking ID " + studentId + " exists: " + exists);
+        return exists;
     }
 
-    public Task<Void> updatePassword(String studentId, String newPassword) {
-        return db.collection(Constants.COLLECTION_STUDENTS).document(studentId)
-                .update("password", newPassword);
+    public boolean updateCGPA(String studentId, double cgpa) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_STUDENT_CGPA, cgpa);
+
+        String whereClause = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] whereArgs = {studentId};
+
+        int rowsAffected = db.update(DatabaseHelper.TABLE_STUDENTS, values, whereClause, whereArgs);
+        
+        if (rowsAffected > 0) {
+            Log.d(TAG, "CGPA updated for student: " + studentId);
+            return true;
+        }
+        return false;
     }
 
-    public Task<QuerySnapshot> login(String email, String password, String department) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .whereEqualTo("email", email)
-                .whereEqualTo("password", password)
-                .whereEqualTo("department", department)
-                .get();
+    public boolean updatePassword(String studentId, String newPassword) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_STUDENT_PASSWORD, newPassword);
+
+        String whereClause = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] whereArgs = {studentId};
+
+        int rowsAffected = db.update(DatabaseHelper.TABLE_STUDENTS, values, whereClause, whereArgs);
+        
+        if (rowsAffected > 0) {
+            Log.d(TAG, "Password updated for student: " + studentId);
+            return true;
+        }
+        return false;
     }
 
-    public Task<QuerySnapshot> getStudentByEmailAndDepartment(String email, String department) {
-        return db.collection(Constants.COLLECTION_STUDENTS)
-                .whereEqualTo("email", email)
-                .whereEqualTo("department", department)
-                .get();
+    public Student login(String email, String password, String department) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Student student = null;
+
+        String selection = DatabaseHelper.COLUMN_STUDENT_EMAIL + " = ? AND " +
+                DatabaseHelper.COLUMN_STUDENT_PASSWORD + " = ? AND " +
+                DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + " = ?";
+        String[] selectionArgs = {email, password, department};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null, null
+        );
+
+        if (cursor != null && cursor.moveToFirst()) {
+            student = cursorToStudent(cursor);
+            Log.d(TAG, "Student login successful: " + email);
+            cursor.close();
+        } else {
+            Log.d(TAG, "Student login failed: " + email);
+            if (cursor != null) cursor.close();
+        }
+
+        return student;
+    }
+
+    public Student getStudentByEmailAndDepartment(String email, String department) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Student student = null;
+
+        String selection = DatabaseHelper.COLUMN_STUDENT_EMAIL + " = ? AND " +
+                DatabaseHelper.COLUMN_STUDENT_DEPARTMENT + " = ?";
+        String[] selectionArgs = {email, department};
+
+        Cursor cursor = db.query(
+                DatabaseHelper.TABLE_STUDENTS,
+                null,
+                selection,
+                selectionArgs,
+                null, null, null
+        );
+
+        if (cursor != null && cursor.moveToFirst()) {
+            student = cursorToStudent(cursor);
+            cursor.close();
+        } else if (cursor != null) {
+            cursor.close();
+        }
+
+        return student;
+    }
+
+    public boolean deleteStudent(String studentId) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        
+        String whereClause = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] whereArgs = {studentId};
+
+        int rowsDeleted = db.delete(DatabaseHelper.TABLE_STUDENTS, whereClause, whereArgs);
+        
+        if (rowsDeleted > 0) {
+            Log.d(TAG, "Student deleted: " + studentId);
+            return true;
+        }
+        return false;
+    }
+
+    private Student cursorToStudent(Cursor cursor) {
+        String id = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID));
+        String name = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_NAME));
+        String email = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_EMAIL));
+        String department = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_DEPARTMENT));
+        String batch = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_BATCH));
+        double cgpa = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_CGPA));
+        String password = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_STUDENT_PASSWORD));
+        
+        return new Student(id, name, email, department, batch, cgpa, password);
     }
 }

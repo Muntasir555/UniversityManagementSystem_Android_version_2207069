@@ -10,8 +10,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.universitymanagement.R;
 import com.example.universitymanagement.adapters.StudentResultsAdapter;
 import com.example.universitymanagement.database.ResultDatabase;
+import com.example.universitymanagement.database.StudentDatabase;
 import com.example.universitymanagement.database.SubjectDatabase;
 import com.example.universitymanagement.models.Result;
+import com.example.universitymanagement.models.Student;
 import com.example.universitymanagement.models.Subject;
 import com.example.universitymanagement.util.Session;
 
@@ -24,6 +26,7 @@ public class StudentResultsActivity extends AppCompatActivity {
     private RecyclerView rvResultsList;
     private ResultDatabase resultDatabase;
     private SubjectDatabase subjectDatabase;
+    private StudentDatabase studentDatabase;
 
     private android.widget.TextView tvCgpaLabel, tvSemesterGpaLabel;
 
@@ -43,48 +46,46 @@ public class StudentResultsActivity extends AppCompatActivity {
         rvResultsList = findViewById(R.id.rvResultsList);
         rvResultsList.setLayoutManager(new LinearLayoutManager(this));
 
-        resultDatabase = new ResultDatabase();
-        subjectDatabase = new SubjectDatabase();
+        resultDatabase = new ResultDatabase(this);
+        subjectDatabase = new SubjectDatabase(this);
+        studentDatabase = new StudentDatabase(this);
 
         loadData();
     }
 
     private void loadData() {
-        // Fetch Subjects first for mapping
-        subjectDatabase.getAllSubjects().addOnSuccessListener(subjectSnapshots -> {
+        new Thread(() -> {
+            // Fetch fresh student data to get updated CGPA
+            Student freshStudent = studentDatabase.getStudent(Session.currentStudent.getId());
+            if (freshStudent != null) {
+                Session.currentStudent.setCgpa(freshStudent.getCgpa());
+            }
+            
+            // Fetch Subjects first for mapping
+            List<Subject> subjects = subjectDatabase.getAllSubjects();
             Map<String, Subject> subjectMap = new HashMap<>();
-            List<Subject> subjects = subjectSnapshots.toObjects(Subject.class);
             for (Subject s : subjects) {
                 subjectMap.put(s.getId(), s);
             }
 
-            fetchResults(subjectMap);
+            // Fetch Results
+            List<Result> results = resultDatabase.getResultsByStudentId(Session.currentStudent.getId());
 
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error loading subjects: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
-    }
+            runOnUiThread(() -> {
+                if (results.isEmpty()) {
+                    Toast.makeText(this, "No results found.", Toast.LENGTH_SHORT).show();
+                }
 
-    private void fetchResults(Map<String, Subject> subjectMap) {
-        resultDatabase.getResultsByStudentId(Session.currentStudent.getId()).addOnSuccessListener(resultSnapshots -> {
-            List<Result> results = resultSnapshots.toObjects(Result.class);
+                StudentResultsAdapter adapter = new StudentResultsAdapter(results, subjectMap);
+                rvResultsList.setAdapter(adapter);
 
-            if (results.isEmpty()) {
-                Toast.makeText(this, "No results found.", Toast.LENGTH_SHORT).show();
-            }
+                // Display CGPA (now updated from database)
+                tvCgpaLabel.setText(String.format("CGPA: %.2f", Session.currentStudent.getCgpa()));
 
-            StudentResultsAdapter adapter = new StudentResultsAdapter(results, subjectMap);
-            rvResultsList.setAdapter(adapter);
-
-            // Display CGPA
-            tvCgpaLabel.setText(String.format("CGPA: %.2f", Session.currentStudent.getCgpa()));
-
-            // Calculate & Display Semester GPAs
-            calculateSemesterGPAs(results, subjectMap);
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error loading results: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
+                // Calculate & Display Semester GPAs
+                calculateSemesterGPAs(results, subjectMap);
+            });
+        }).start();
     }
 
     private void calculateSemesterGPAs(List<Result> results, Map<String, Subject> subjectMap) {

@@ -2,26 +2,24 @@ package com.example.universitymanagement.controllers;
 
 import android.os.Bundle;
 import android.widget.Button;
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.universitymanagement.R;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import com.example.universitymanagement.database.StudentDatabase;
+import com.example.universitymanagement.models.Student;
 
 public class StudentLoginActivity extends AppCompatActivity {
 
     private android.widget.EditText etEmail, etPassword;
     private android.widget.Spinner spDepartment;
     private android.widget.TextView tvError;
-    private com.example.universitymanagement.database.StudentDatabase studentDatabase;
+    private StudentDatabase studentDatabase;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_student_login);
 
-        studentDatabase = new com.example.universitymanagement.database.StudentDatabase();
+        studentDatabase = new StudentDatabase(this);
 
         etEmail = findViewById(R.id.etStudentEmail);
         etPassword = findViewById(R.id.etStudentPassword);
@@ -31,7 +29,7 @@ public class StudentLoginActivity extends AppCompatActivity {
         Button btnBack = findViewById(R.id.btnBackStart);
 
         // Populate Spinner
-        String[] departments = { "CSE", "EEE", "Civil", "ME" };
+        String[] departments = { "CSE", "EEE", "Civil", "ME", "Physics", "Math", "Chemistry" };
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_dropdown_item, departments);
         spDepartment.setAdapter(adapter);
@@ -50,22 +48,20 @@ public class StudentLoginActivity extends AppCompatActivity {
             return;
         }
 
-        studentDatabase.login(email, password, department).addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
-                com.example.universitymanagement.models.Student student = task.getResult().getDocuments().get(0)
-                        .toObject(com.example.universitymanagement.models.Student.class);
+        // Perform login in background thread
+        new Thread(() -> {
+            Student student = studentDatabase.login(email, password, department);
+            
+            runOnUiThread(() -> {
                 if (student != null) {
                     com.example.universitymanagement.util.Session.clear();
                     com.example.universitymanagement.util.Session.currentStudent = student;
-                    startActivity(
-                            new android.content.Intent(StudentLoginActivity.this, StudentDashboardActivity.class));
+                    startActivity(new android.content.Intent(StudentLoginActivity.this, StudentDashboardActivity.class));
                     finish();
                 } else {
-                    tvError.setText("Login failed: Invalid data.");
+                    tvError.setText("Invalid credentials.");
                 }
-            } else {
-                tvError.setText("Invalid credentials.");
-            }
-        });
+            });
+        }).start();
     }
 }

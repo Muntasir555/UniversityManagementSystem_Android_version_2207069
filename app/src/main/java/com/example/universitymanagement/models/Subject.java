@@ -4,25 +4,25 @@ public class Subject {
     private String id;
     private String code;
     private String name;
-    private int credit;
+    private double credits;
     private String department;
+    private String semester;
 
     public Subject() {
-        // Required for Firestore
     }
 
-    public Subject(String id, String name, String code, int credit, String department) {
+    public Subject(String id, String name, String code, double credits, String department) {
         this.id = id;
         this.name = name;
         this.code = code;
-        this.credit = credit;
+        this.credits = credits;
         this.department = department;
     }
 
-    public Subject(String name, String code, int credit, String department) {
+    public Subject(String name, String code, double credits, String department) {
         this.name = name;
         this.code = code;
-        this.credit = credit;
+        this.credits = credits;
         this.department = department;
     }
 
@@ -50,12 +50,21 @@ public class Subject {
         this.name = name;
     }
 
-    public int getCredit() {
-        return credit;
+    public double getCredits() {
+        return credits;
     }
 
-    public void setCredit(int credit) {
-        this.credit = credit;
+    public void setCredits(double credits) {
+        this.credits = credits;
+    }
+
+    // Alias method for backwards compatibility
+    public double getCredit() {
+        return credits;
+    }
+
+    public void setCredit(double credit) {
+        this.credits = credit;
     }
 
     public String getDepartment() {
@@ -64,5 +73,13 @@ public class Subject {
 
     public void setDepartment(String department) {
         this.department = department;
+    }
+
+    public String getSemester() {
+        return semester;
+    }
+
+    public void setSemester(String semester) {
+        this.semester = semester;
     }
 }

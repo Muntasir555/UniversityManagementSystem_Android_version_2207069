@@ -6,7 +6,6 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -15,9 +14,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.universitymanagement.R;
-
-import com.example.universitymanagement.R;
-
 import com.example.universitymanagement.database.CourseAssignmentDatabase;
 import com.example.universitymanagement.database.FacultyDatabase;
 import com.example.universitymanagement.database.StudentDatabase;
@@ -26,16 +22,11 @@ import com.example.universitymanagement.models.CourseAssignment;
 import com.example.universitymanagement.models.Faculty;
 import com.example.universitymanagement.models.Student;
 import com.example.universitymanagement.models.Subject;
-import com.example.universitymanagement.util.Constants;
-import com.google.android.material.snackbar.Snackbar;
-import com.google.firebase.Timestamp;
-import com.google.firebase.firestore.DocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class AdminAssignCourseActivity extends AppCompatActivity {
 
@@ -52,7 +43,7 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
     private CourseAssignmentDatabase courseAssignmentDatabase;
 
     private List<Faculty> allFaculty = new ArrayList<>();
-    private List<String> facultyNames = new ArrayList<>(); // formatted names for spinner
+    private List<String> facultyNames = new ArrayList<>();
     private ArrayAdapter<String> batchAdapter;
     private List<String> batchList = new ArrayList<>();
 
@@ -62,10 +53,10 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
         setContentView(R.layout.activity_admin_assign_course);
 
         // Initialize Databases
-        studentDatabase = new StudentDatabase();
-        facultyDatabase = new FacultyDatabase();
-        subjectDatabase = new SubjectDatabase();
-        courseAssignmentDatabase = new CourseAssignmentDatabase();
+        studentDatabase = new StudentDatabase(this);
+        facultyDatabase = new FacultyDatabase(this);
+        subjectDatabase = new SubjectDatabase(this);
+        courseAssignmentDatabase = new CourseAssignmentDatabase(this);
 
         // Initialize Views
         departmentSpinner = findViewById(R.id.departmentSpinner);
@@ -108,39 +99,40 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
     }
 
     private void loadFaculty() {
-        facultyDatabase.getAllFaculty().addOnSuccessListener(queryDocumentSnapshots -> {
-            allFaculty.clear();
-            facultyNames.clear();
-            facultyNames.add("Select Faculty"); // Default option
-            for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                Faculty faculty = doc.toObject(Faculty.class);
-                if (faculty != null) {
+        new Thread(() -> {
+            List<Faculty> facultyList = facultyDatabase.getAllFaculty();
+            
+            runOnUiThread(() -> {
+                allFaculty.clear();
+                facultyNames.clear();
+                facultyNames.add("Select Faculty");
+                
+                for (Faculty faculty : facultyList) {
                     allFaculty.add(faculty);
                     facultyNames.add(faculty.getName() + " (" + faculty.getDepartment() + ")");
                 }
-            }
-            // Update any existing rows? For now, logic assumes one load.
-            // Ideally we should update existing spinners, but rows are added dynamically
-            // *after* this usually finishes or concurrently.
-            // Simplified: New rows will pick this up.
-        }).addOnFailureListener(e -> Toast.makeText(this, "Failed to load faculty", Toast.LENGTH_SHORT).show());
+            });
+        }).start();
     }
 
     private void loadBatches() {
-        // Fetch all students to get distinct batches (Client-side distinct)
-        studentDatabase.getAllStudentsForBatches().addOnSuccessListener(queryDocumentSnapshots -> {
+        new Thread(() -> {
+            List<Student> students = studentDatabase.getAllStudents();
             Set<String> batches = new HashSet<>();
-            for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                Student s = doc.toObject(Student.class);
-                if (s != null && s.getBatch() != null) {
+            
+            for (Student s : students) {
+                if (s.getBatch() != null) {
                     batches.add(s.getBatch());
                 }
             }
-            batchList.clear();
-            batchList.add("Select Batch");
-            batchList.addAll(batches);
-            batchAdapter.notifyDataSetChanged();
-        }).addOnFailureListener(e -> Toast.makeText(this, "Failed to load batches", Toast.LENGTH_SHORT).show());
+            
+            runOnUiThread(() -> {
+                batchList.clear();
+                batchList.add("Select Batch");
+                batchList.addAll(batches);
+                batchAdapter.notifyDataSetChanged();
+            });
+        }).start();
     }
 
     private void addCourseRow() {
@@ -179,26 +171,24 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
         removeBtn.setText("X");
         removeBtn.setTextColor(getResources().getColor(android.R.color.white));
         removeBtn.setBackgroundColor(getResources().getColor(android.R.color.holo_red_light));
-        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT,
-                0.7f);
+        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f);
         removeBtn.setLayoutParams(btnLp);
         removeBtn.setOnClickListener(v -> courseContainer.removeView(row));
 
-        // Logic to auto-fill name/credit if code exists (simplified: require strict
-        // match or user enters)
+        // Auto-fill name/credit if subject code exists
         codeEt.setOnFocusChangeListener((v, hasFocus) -> {
             if (!hasFocus) {
                 String code = codeEt.getText().toString().trim();
                 if (!code.isEmpty()) {
-                    subjectDatabase.getSubjectByCode(code).addOnSuccessListener(snaps -> {
-                        if (!snaps.isEmpty()) {
-                            Subject s = snaps.getDocuments().get(0).toObject(Subject.class);
-                            if (s != null) {
-                                nameEt.setText(s.getName());
-                                creditEt.setText(String.valueOf(s.getCredit()));
-                            }
+                    new Thread(() -> {
+                        Subject subject = subjectDatabase.getSubjectByCode(code);
+                        if (subject != null) {
+                            runOnUiThread(() -> {
+                                nameEt.setText(subject.getName());
+                                creditEt.setText(String.valueOf(subject.getCredits()));
+                            });
                         }
-                    });
+                    }).start();
                 }
             }
         });
@@ -225,18 +215,17 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
 
         statusLabel.setText("Processing...");
 
-        studentDatabase.getStudentsByDepartmentAndBatch(dept, batch).addOnSuccessListener(studentSnaps -> {
-            if (studentSnaps.isEmpty()) {
-                statusLabel.setText("No students found for " + dept + " Batch " + batch);
+        new Thread(() -> {
+            List<Student> students = studentDatabase.getStudentsByDepartmentAndBatch(dept, batch);
+            
+            if (students.isEmpty()) {
+                runOnUiThread(() -> statusLabel.setText("No students found for " + dept + " Batch " + batch));
                 return;
             }
 
-            List<Student> students = studentSnaps.toObjects(Student.class);
-            AtomicInteger processedRows = new AtomicInteger(0);
             int rowCount = courseContainer.getChildCount();
-
             if (rowCount == 0) {
-                statusLabel.setText("No courses added.");
+                runOnUiThread(() -> statusLabel.setText("No courses added."));
                 return;
             }
 
@@ -246,7 +235,7 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
                     processRow((LinearLayout) child, dept, semester, students);
                 }
             }
-        }).addOnFailureListener(e -> statusLabel.setText("Error fetching students: " + e.getMessage()));
+        }).start();
     }
 
     private void processRow(LinearLayout row, String dept, String semester, List<Student> students) {
@@ -260,15 +249,13 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
         String creditStr = creditEt.getText().toString().trim();
         int facultyIdx = facultySp.getSelectedItemPosition();
 
-        if (TextUtils.isEmpty(code) || facultyIdx <= 0) { // 0 is "Select Faculty"
+        if (TextUtils.isEmpty(code) || facultyIdx <= 0) {
             logStatus("Skipped incomplete row: " + code);
             return;
         }
 
-        // Get actual Faculty object (Offset by 1 due to "Select Faculty")
         Faculty faculty = (facultyIdx - 1 < allFaculty.size()) ? allFaculty.get(facultyIdx - 1) : null;
-        if (faculty == null)
-            return;
+        if (faculty == null) return;
 
         int credit = 0;
         try {
@@ -278,41 +265,57 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
             return;
         }
 
-        // Check or Create Subject
         int finalCredit = credit;
-        subjectDatabase.getSubjectByCode(code).addOnSuccessListener(snaps -> {
-            Subject subjectToAssign;
-            if (!snaps.isEmpty()) {
-                subjectToAssign = snaps.getDocuments().get(0).toObject(Subject.class);
-                assignToStudents(subjectToAssign, faculty, semester, students);
-            } else {
+        String finalName = name;
+        
+        // Check or Create Subject in background
+        new Thread(() -> {
+            Subject subjectToAssign = subjectDatabase.getSubjectByCode(code);
+            
+            if (subjectToAssign == null) {
                 // Create new Subject
                 Subject newSub = new Subject();
                 newSub.setCode(code);
-                newSub.setName(name);
-                newSub.setCredit(finalCredit);
+                newSub.setName(finalName);
+                newSub.setCredits(finalCredit);
                 newSub.setDepartment(dept);
-
-                subjectDatabase.addSubject(newSub).addOnSuccessListener(v -> {
-                    assignToStudents(newSub, faculty, semester, students); // Note: ID is set in addSubject but ensures
-                                                                           // object ref has it
-                }).addOnFailureListener(e -> logStatus("Failed to create subject " + code));
+                newSub.setSemester(semester);
+                
+                boolean success = subjectDatabase.addSubject(newSub);
+                if (success) {
+                    subjectToAssign = subjectDatabase.getSubjectByCode(code);
+                } else {
+                    logStatus("Failed to create subject " + code);
+                    return;
+                }
             }
-        });
+            
+            if (subjectToAssign != null) {
+                assignToStudents(subjectToAssign, faculty, semester, students);
+            }
+        }).start();
     }
 
     private void assignToStudents(Subject subject, Faculty faculty, String semester, List<Student> students) {
+        int successCount = 0;
+        
         for (Student s : students) {
-            CourseAssignment ca = new CourseAssignment();
-            ca.setStudentId(s.getId());
-            ca.setSubjectId(subject.getId());
-            ca.setFacultyId(faculty.getId());
-            ca.setSemester(semester);
-            ca.setTimestamp(Timestamp.now());
-
-            courseAssignmentDatabase.assignCourse(ca); // Fire and forget for bulk, or track count
+            // Check if already assigned
+            if (!courseAssignmentDatabase.isAssigned(s.getId(), subject.getId(), faculty.getId())) {
+                CourseAssignment ca = new CourseAssignment();
+                ca.setStudentId(s.getId());
+                ca.setSubjectId(subject.getId());
+                ca.setFacultyId(faculty.getId());
+                ca.setSemester(semester);
+                
+                if (courseAssignmentDatabase.assignCourse(ca)) {
+                    successCount++;
+                }
+            }
         }
-        logStatus("Assigned " + subject.getCode() + " to " + students.size() + " students.");
+        
+        int finalCount = successCount;
+        logStatus("Assigned " + subject.getCode() + " to " + finalCount + " students.");
     }
 
     private void logStatus(String msg) {

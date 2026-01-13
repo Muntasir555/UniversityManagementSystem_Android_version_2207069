@@ -14,10 +14,11 @@ import com.example.universitymanagement.R;
 import com.example.universitymanagement.adapters.NoticeAdapter;
 import com.example.universitymanagement.database.NoticeDatabase;
 import com.example.universitymanagement.models.Notice;
+import com.example.universitymanagement.util.Session;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
+import java.util.List;
 
 public class AdminNoticeBoardActivity extends AppCompatActivity {
 
@@ -32,7 +33,7 @@ public class AdminNoticeBoardActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin_notice_board);
 
-        noticeDatabase = new NoticeDatabase();
+        noticeDatabase = new NoticeDatabase(this);
 
         etTitle = findViewById(R.id.etTitle);
         etContent = findViewById(R.id.etContent);
@@ -68,18 +69,28 @@ public class AdminNoticeBoardActivity extends AppCompatActivity {
     }
 
     private void loadNotices(androidx.recyclerview.widget.RecyclerView rvNotices) {
-        noticeDatabase.getAllNotices().addOnSuccessListener(queryDocumentSnapshots -> {
-            java.util.List<Notice> notices = queryDocumentSnapshots.toObjects(Notice.class);
-            NoticeAdapter adapter = new NoticeAdapter(notices,
-                    // Click Listener (View Details)
-                    notice -> {
-                        Toast.makeText(AdminNoticeBoardActivity.this, "Clicked: " + notice.getTitle(),
-                                Toast.LENGTH_SHORT).show();
-                    },
-                    // Long Click Listener (Delete)
-                    notice -> showDeleteConfirmation(notice, rvNotices));
-            rvNotices.setAdapter(adapter);
-        });
+        new Thread(() -> {
+            List<Notice> notices = noticeDatabase.getAllNotices();
+            
+            runOnUiThread(() -> {
+                NoticeAdapter adapter = new NoticeAdapter(notices,
+                        // Click Listener (View Details)
+                        notice -> {
+                            showNoticeDetails(notice);
+                        },
+                        // Long Click Listener (Delete)
+                        notice -> showDeleteConfirmation(notice, rvNotices));
+                rvNotices.setAdapter(adapter);
+            });
+        }).start();
+    }
+
+    private void showNoticeDetails(Notice notice) {
+        new AlertDialog.Builder(this)
+                .setTitle(notice.getTitle())
+                .setMessage("Date: " + notice.getDate() + "\n\n" + notice.getContent())
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void showDeleteConfirmation(Notice notice, androidx.recyclerview.widget.RecyclerView rvNotices) {
@@ -87,21 +98,26 @@ public class AdminNoticeBoardActivity extends AppCompatActivity {
                 .setTitle("Delete Notice")
                 .setMessage("Are you sure you want to delete this notice?")
                 .setPositiveButton("Delete", (dialog, which) -> {
-                    noticeDatabase.deleteNotice(notice.getId())
-                            .addOnSuccessListener(aVoid -> {
+                    new Thread(() -> {
+                        boolean success = noticeDatabase.deleteNotice(notice.getId());
+                        
+                        runOnUiThread(() -> {
+                            if (success) {
                                 Toast.makeText(this, "Notice deleted successfully", Toast.LENGTH_SHORT).show();
                                 loadNotices(rvNotices); // Refresh list
-                            })
-                            .addOnFailureListener(
-                                    e -> Toast.makeText(this, "Error deleting notice", Toast.LENGTH_SHORT).show());
+                            } else {
+                                Toast.makeText(this, "Error deleting notice", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }).start();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
     private void postNotice() {
-        String title = etTitle.getText().toString();
-        String content = etContent.getText().toString();
+        String title = etTitle.getText().toString().trim();
+        String content = etContent.getText().toString().trim();
 
         if (title.isEmpty() || content.isEmpty()) {
             Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
@@ -109,10 +125,19 @@ public class AdminNoticeBoardActivity extends AppCompatActivity {
         }
 
         String dateString = selectedDate.toString();
-        Notice notice = new Notice(title, content, dateString);
+        String postedBy = Session.currentAdmin != null ? Session.currentAdmin.getUsername() : "Admin";
+        
+        Notice notice = new Notice();
+        notice.setTitle(title);
+        notice.setContent(content);
+        notice.setDate(dateString);
+        notice.setPostedBy(postedBy);
 
-        noticeDatabase.addNotice(notice)
-                .addOnSuccessListener(aVoid -> {
+        new Thread(() -> {
+            boolean success = noticeDatabase.addNotice(notice);
+            
+            runOnUiThread(() -> {
+                if (success) {
                     Toast.makeText(this, "Notice posted successfully", Toast.LENGTH_SHORT).show();
                     etTitle.setText("");
                     etContent.setText("");
@@ -123,9 +148,10 @@ public class AdminNoticeBoardActivity extends AppCompatActivity {
                     // Refresh list
                     androidx.recyclerview.widget.RecyclerView rvNotices = findViewById(R.id.rvNotices);
                     loadNotices(rvNotices);
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error posting notice: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                } else {
+                    Toast.makeText(this, "Error posting notice", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }).start();
     }
 }

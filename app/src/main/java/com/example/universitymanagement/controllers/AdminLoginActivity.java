@@ -20,6 +20,7 @@ public class AdminLoginActivity extends AppCompatActivity {
     private EditText etUsername;
     private EditText etPassword;
     private TextView tvError;
+    private AdminDatabase adminDatabase;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,8 +34,8 @@ public class AdminLoginActivity extends AppCompatActivity {
             return insets;
         });
 
-        // Ensure default admin exists
-        new AdminDatabase().checkAndCreateDefaultAdmin();
+        // Initialize database
+        adminDatabase = new AdminDatabase(this);
 
         // Initialize Views
         etUsername = findViewById(R.id.etUsername);
@@ -59,46 +60,23 @@ public class AdminLoginActivity extends AppCompatActivity {
             return;
         }
 
-        AdminDatabase adminDatabase = new AdminDatabase();
-        adminDatabase.getAdminByUsername(username).addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                com.google.firebase.firestore.QuerySnapshot snapshot = task.getResult();
-                if (snapshot != null && !snapshot.isEmpty()) {
-                    // Check if any document actually matches
-                    boolean found = false;
-                    for (com.google.firebase.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
-                        Admin admin = doc.toObject(Admin.class);
-                        if (admin != null && username.equals(admin.getUsername())) {
-                            if (password.equals(admin.getPassword())) {
-                                Session.clear();
-                                Session.currentAdmin = admin;
-                                android.widget.Toast
-                                        .makeText(this, "Login Successful", android.widget.Toast.LENGTH_SHORT)
-                                        .show();
-                                navigateToDashboard();
-                                found = true;
-                                break;
-                            } else {
-                                tvError.setText("Invalid password.");
-                                found = true; // Username found, but password incorrect
-                                break;
-                            }
-                        }
-                    }
-                    if (!found) {
-                        // technically shouldn't reach here if query worked correctly for username,
-                        // unless case sensitivity or other data issues
-                        tvError.setText("User not found.");
-                    }
+        // Perform login in background thread
+        new Thread(() -> {
+            Admin admin = adminDatabase.login(username, password);
+            
+            runOnUiThread(() -> {
+                if (admin != null) {
+                    Session.clear();
+                    Session.currentAdmin = admin;
+                    android.widget.Toast.makeText(this, "Login Successful", android.widget.Toast.LENGTH_SHORT).show();
+                    android.util.Log.d("AdminLogin", "Login successful for: " + username);
+                    navigateToDashboard();
                 } else {
-                    tvError.setText("User not found.");
+                    tvError.setText("Invalid username or password.");
+                    android.util.Log.d("AdminLogin", "Login failed for: " + username);
                 }
-            } else {
-                tvError.setText("Login error: "
-                        + (task.getException() != null ? task.getException().getMessage() : "Unknown error"));
-                android.util.Log.e("AdminLogin", "Error logging in", task.getException());
-            }
-        });
+            });
+        }).start();
     }
 
     private void navigateToDashboard() {

@@ -63,9 +63,11 @@ public class AdminDashboardActivity extends AppCompatActivity {
                     .setMessage("Are you sure you want to delete ALL data? This cannot be undone.")
                     .setPositiveButton("Yes, Delete All", (dialog, which) -> {
                         Toast.makeText(this, "Deleting database...", Toast.LENGTH_SHORT).show();
-                        com.example.universitymanagement.util.DBUtil.getInstance().resetDatabase(
-                                () -> Toast.makeText(this, "Database Cleared Successfully", Toast.LENGTH_LONG).show(),
-                                () -> Toast.makeText(this, "Error Clearing Database", Toast.LENGTH_SHORT).show());
+                        new Thread(() -> {
+                            com.example.universitymanagement.util.DBUtil.getInstance(this).resetDatabase(
+                                    () -> runOnUiThread(() -> Toast.makeText(this, "Database Cleared Successfully", Toast.LENGTH_LONG).show()),
+                                    () -> runOnUiThread(() -> Toast.makeText(this, "Error Clearing Database", Toast.LENGTH_SHORT).show()));
+                        }).start();
                     })
                     .setNegativeButton("Cancel", null)
                     .show();

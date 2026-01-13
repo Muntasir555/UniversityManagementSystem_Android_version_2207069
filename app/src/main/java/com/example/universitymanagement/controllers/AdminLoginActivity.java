@@ -60,7 +60,7 @@ public class AdminLoginActivity extends AppCompatActivity {
         }
 
         AdminDatabase adminDatabase = new AdminDatabase();
-        adminDatabase.validateLogin(username, password).addOnCompleteListener(task -> {
+        adminDatabase.getAdminByUsername(username).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 com.google.firebase.firestore.QuerySnapshot snapshot = task.getResult();
                 if (snapshot != null && !snapshot.isEmpty()) {
@@ -68,22 +68,30 @@ public class AdminLoginActivity extends AppCompatActivity {
                     boolean found = false;
                     for (com.google.firebase.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
                         Admin admin = doc.toObject(Admin.class);
-                        if (admin != null && username.equals(admin.getUsername())
-                                && password.equals(admin.getPassword())) {
-                            Session.clear();
-                            Session.currentAdmin = admin;
-                            android.widget.Toast.makeText(this, "Login Successful", android.widget.Toast.LENGTH_SHORT)
-                                    .show();
-                            navigateToDashboard();
-                            found = true;
-                            break;
+                        if (admin != null && username.equals(admin.getUsername())) {
+                            if (password.equals(admin.getPassword())) {
+                                Session.clear();
+                                Session.currentAdmin = admin;
+                                android.widget.Toast
+                                        .makeText(this, "Login Successful", android.widget.Toast.LENGTH_SHORT)
+                                        .show();
+                                navigateToDashboard();
+                                found = true;
+                                break;
+                            } else {
+                                tvError.setText("Invalid password.");
+                                found = true; // Username found, but password incorrect
+                                break;
+                            }
                         }
                     }
                     if (!found) {
-                        tvError.setText("Invalid credentials (no matching admin found).");
+                        // technically shouldn't reach here if query worked correctly for username,
+                        // unless case sensitivity or other data issues
+                        tvError.setText("User not found.");
                     }
                 } else {
-                    tvError.setText("Invalid credentials.");
+                    tvError.setText("User not found.");
                 }
             } else {
                 tvError.setText("Login error: "

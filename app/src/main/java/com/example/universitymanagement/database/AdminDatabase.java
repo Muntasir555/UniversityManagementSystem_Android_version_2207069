@@ -17,10 +17,12 @@ public class AdminDatabase {
 
     // Login validation via Firestore (Note: FirebaseAuth is recommended for
     // production)
-    public Task<QuerySnapshot> validateLogin(String username, String password) {
+    // Login validation via Firestore
+    // query by username only, check password locally to avoid composite index
+    // issues
+    public Task<QuerySnapshot> getAdminByUsername(String username) {
         return db.collection(Constants.COLLECTION_ADMINS)
                 .whereEqualTo("username", username)
-                .whereEqualTo("password", password)
                 .get();
     }
 

@@ -1,17 +1,13 @@
 package com.example.universitymanagement.models;
 
-import com.google.firebase.Timestamp;
-
 public class CourseAssignment {
     private String id;
     private String studentId;
     private String subjectId;
     private String facultyId;
     private String semester;
-    private Timestamp timestamp;
 
     public CourseAssignment() {
-        // Required for Firestore
     }
 
     public CourseAssignment(String id, String studentId, String subjectId, String facultyId, String semester) {
@@ -67,13 +63,5 @@ public class CourseAssignment {
 
     public void setSemester(String semester) {
         this.semester = semester;
-    }
-
-    public Timestamp getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Timestamp timestamp) {
-        this.timestamp = timestamp;
     }
 }

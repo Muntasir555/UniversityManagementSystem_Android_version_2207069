@@ -1,72 +1,36 @@
 package com.example.universitymanagement.util;
 
-import com.google.firebase.firestore.FirebaseFirestore;
+import android.content.Context;
+
+import com.example.universitymanagement.database.DatabaseHelper;
 
 public class DBUtil {
     private static DBUtil instance;
-    private final FirebaseFirestore db;
+    private final Context context;
 
-    private DBUtil() {
-        db = FirebaseFirestore.getInstance();
+    private DBUtil(Context context) {
+        this.context = context.getApplicationContext();
     }
 
-    public static synchronized DBUtil getInstance() {
+    public static synchronized DBUtil getInstance(Context context) {
         if (instance == null) {
-            instance = new DBUtil();
+            instance = new DBUtil(context);
         }
         return instance;
     }
 
-    public FirebaseFirestore getDb() {
-        return db;
-    }
-
     public void resetDatabase(Runnable onSuccess, Runnable onFailure) {
-        // List of all collections to clear
-        String[] collections = {
-                Constants.COLLECTION_STUDENTS,
-                Constants.COLLECTION_FACULTY,
-                Constants.COLLECTION_COURSES,
-                Constants.COLLECTION_NOTICES,
-                Constants.COLLECTION_ATTENDANCE,
-                Constants.COLLECTION_SUBJECTS,
-                Constants.COLLECTION_RESULTS,
-                Constants.COLLECTION_COURSE_ASSIGNMENTS
-                // Add other collections here if any
-        };
-
-        deleteCollectionsRecursively(collections, 0, onSuccess, onFailure);
-    }
-
-    private void deleteCollectionsRecursively(String[] collections, int index, Runnable onSuccess, Runnable onFailure) {
-        if (index >= collections.length) {
-            onSuccess.run();
-            return;
+        try {
+            DatabaseHelper dbHelper = DatabaseHelper.getInstance(context);
+            dbHelper.resetDatabase();
+            if (onSuccess != null) {
+                onSuccess.run();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("DBUtil", "Error resetting database", e);
+            if (onFailure != null) {
+                onFailure.run();
+            }
         }
-
-        String collectionName = collections[index];
-        deleteCollection(collectionName, () -> {
-            deleteCollectionsRecursively(collections, index + 1, onSuccess, onFailure);
-        }, onFailure);
-    }
-
-    private void deleteCollection(String collectionName, Runnable onSuccess, Runnable onFailure) {
-        db.collection(collectionName).get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (queryDocumentSnapshots.isEmpty()) {
-                        onSuccess.run();
-                        return;
-                    }
-
-                    com.google.firebase.firestore.WriteBatch batch = db.batch();
-                    for (com.google.firebase.firestore.DocumentSnapshot document : queryDocumentSnapshots) {
-                        batch.delete(document.getReference());
-                    }
-
-                    batch.commit()
-                            .addOnSuccessListener(aVoid -> onSuccess.run())
-                            .addOnFailureListener(e -> onFailure.run());
-                })
-                .addOnFailureListener(e -> onFailure.run());
     }
 }

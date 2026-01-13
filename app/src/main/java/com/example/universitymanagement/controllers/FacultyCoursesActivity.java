@@ -14,9 +14,6 @@ import com.example.universitymanagement.database.SubjectDatabase;
 import com.example.universitymanagement.models.CourseAssignment;
 import com.example.universitymanagement.models.Subject;
 import com.example.universitymanagement.util.Session;
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.Tasks;
-import com.google.firebase.firestore.DocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -37,8 +34,8 @@ public class FacultyCoursesActivity extends AppCompatActivity {
         rvCourses = findViewById(R.id.rvCourses);
         rvCourses.setLayoutManager(new LinearLayoutManager(this));
 
-        courseAssignmentDatabase = new CourseAssignmentDatabase();
-        subjectDatabase = new SubjectDatabase();
+        courseAssignmentDatabase = new CourseAssignmentDatabase(this);
+        subjectDatabase = new SubjectDatabase(this);
 
         loadCourses();
     }
@@ -50,40 +47,29 @@ public class FacultyCoursesActivity extends AppCompatActivity {
             return;
         }
 
-        courseAssignmentDatabase.getAssignmentsByFaculty(Session.currentFaculty.getId())
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    List<CourseAssignment> assignments = queryDocumentSnapshots.toObjects(CourseAssignment.class);
-                    Set<String> addedSubjectIds = new HashSet<>();
-                    List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
+        new Thread(() -> {
+            List<CourseAssignment> assignments = courseAssignmentDatabase.getAssignmentsByFaculty(Session.currentFaculty.getId());
+            Set<String> addedSubjectIds = new HashSet<>();
+            List<Subject> subjects = new ArrayList<>();
 
-                    for (CourseAssignment ca : assignments) {
-                        if (!addedSubjectIds.contains(ca.getSubjectId())) {
-                            addedSubjectIds.add(ca.getSubjectId());
-                            tasks.add(subjectDatabase.getSubjectById(ca.getSubjectId()));
-                        }
+            for (CourseAssignment ca : assignments) {
+                if (!addedSubjectIds.contains(ca.getSubjectId())) {
+                    addedSubjectIds.add(ca.getSubjectId());
+                    Subject subject = subjectDatabase.getSubjectById(ca.getSubjectId());
+                    if (subject != null) {
+                        subjects.add(subject);
                     }
+                }
+            }
 
-                    if (tasks.isEmpty()) {
-                        Toast.makeText(this, "No courses assigned.", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    Tasks.whenAllSuccess(tasks).addOnSuccessListener(objects -> {
-                        List<Subject> subjects = new ArrayList<>();
-                        for (Object obj : objects) {
-                            DocumentSnapshot snap = (DocumentSnapshot) obj;
-                            if (snap.exists()) {
-                                subjects.add(snap.toObject(Subject.class));
-                            }
-                        }
-                        SubjectAdapter adapter = new SubjectAdapter(subjects);
-                        rvCourses.setAdapter(adapter);
-                    }).addOnFailureListener(e -> {
-                        Toast.makeText(this, "Error fetching course details", Toast.LENGTH_SHORT).show();
-                    });
-
-                }).addOnFailureListener(e -> {
-                    Toast.makeText(this, "Error fetching assignments", Toast.LENGTH_SHORT).show();
-                });
+            runOnUiThread(() -> {
+                if (subjects.isEmpty()) {
+                    Toast.makeText(this, "No courses assigned.", Toast.LENGTH_SHORT).show();
+                } else {
+                    SubjectAdapter adapter = new SubjectAdapter(subjects);
+                    rvCourses.setAdapter(adapter);
+                }
+            });
+        }).start();
     }
 }

@@ -6,14 +6,14 @@ import java.util.Map;
 
 public class CGPAUtility {
 
-    public static double calculateCGPA(List<Result> results, Map<String, Integer> subjectCredits) {
+    public static double calculateCGPA(List<Result> results, Map<String, Double> subjectCredits) {
         double totalGradePoints = 0;
         double totalCredits = 0;
 
         for (Result result : results) {
             String subjectId = result.getSubjectId();
             if (subjectCredits.containsKey(subjectId)) {
-                int credit = subjectCredits.get(subjectId);
+                double credit = subjectCredits.get(subjectId);
                 double gradePoint = calculateGradePoint(result.getGrade());
 
                 totalGradePoints += (gradePoint * credit);

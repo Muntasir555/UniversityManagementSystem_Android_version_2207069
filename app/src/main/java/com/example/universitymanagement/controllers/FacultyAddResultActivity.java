@@ -26,9 +26,6 @@ import com.example.universitymanagement.models.Student;
 import com.example.universitymanagement.models.Subject;
 import com.example.universitymanagement.util.CGPAUtility;
 import com.example.universitymanagement.util.Session;
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.Tasks;
-import com.google.firebase.firestore.DocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -51,7 +48,7 @@ public class FacultyAddResultActivity extends AppCompatActivity {
     private List<CourseAssignment> myAssignments;
     private List<String> courseListDisplay;
     private Student selectedStudent;
-    private String selectedCourseString; // Format: "Code - Sem"
+    private String selectedCourseString;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,10 +56,10 @@ public class FacultyAddResultActivity extends AppCompatActivity {
         setContentView(R.layout.activity_faculty_add_result);
 
         // Initialize DBs
-        courseAssignmentDatabase = new CourseAssignmentDatabase();
-        subjectDatabase = new SubjectDatabase();
-        studentDatabase = new StudentDatabase();
-        resultDatabase = new ResultDatabase();
+        courseAssignmentDatabase = new CourseAssignmentDatabase(this);
+        subjectDatabase = new SubjectDatabase(this);
+        studentDatabase = new StudentDatabase(this);
+        resultDatabase = new ResultDatabase(this);
 
         // Initialize Views
         spCourses = findViewById(R.id.spCourses);
@@ -86,33 +83,26 @@ public class FacultyAddResultActivity extends AppCompatActivity {
         }
 
         String facultyId = Session.currentFaculty.getId();
-        courseAssignmentDatabase.getAssignmentsByFaculty(facultyId).addOnSuccessListener(queryDocumentSnapshots -> {
-            myAssignments = queryDocumentSnapshots.toObjects(CourseAssignment.class);
+        
+        new Thread(() -> {
+            myAssignments = courseAssignmentDatabase.getAssignmentsByFaculty(facultyId);
             Set<String> subjects = new HashSet<>();
             courseListDisplay = new ArrayList<>();
 
-            // We need to fetch Subject details for each assignment to get the Code
-            List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
+            // Fetch Subject details for each assignment
             for (CourseAssignment ca : myAssignments) {
-                tasks.add(subjectDatabase.getSubjectById(ca.getSubjectId()));
-            }
-
-            Tasks.whenAllSuccess(tasks).addOnSuccessListener(objects -> {
-                for (int i = 0; i < objects.size(); i++) {
-                    DocumentSnapshot snap = (DocumentSnapshot) objects.get(i);
-                    Subject subject = snap.toObject(Subject.class);
-                    CourseAssignment ca = myAssignments.get(i);
-                    if (subject != null) {
-                        String item = subject.getCode() + " - " + ca.getSemester();
-                        if (!subjects.contains(item)) {
-                            subjects.add(item);
-                            courseListDisplay.add(item);
-                        }
+                Subject subject = subjectDatabase.getSubjectById(ca.getSubjectId());
+                if (subject != null) {
+                    String item = subject.getCode() + " - " + ca.getSemester();
+                    if (!subjects.contains(item)) {
+                        subjects.add(item);
+                        courseListDisplay.add(item);
                     }
                 }
-                setupCourseSpinner();
-            });
-        });
+            }
+            
+            runOnUiThread(this::setupCourseSpinner);
+        }).start();
     }
 
     private void setupCourseSpinner() {
@@ -138,48 +128,69 @@ public class FacultyAddResultActivity extends AppCompatActivity {
         String subjectCode = parts[0];
         String semester = parts[1];
 
-        // Find Subject ID from Code (Need async call or cache, simplifying by
-        // re-fetching or using existing list logic if optimal)
-        // Since we didn't cache Subject map, let's just fetch subject by code to get ID
-        subjectDatabase.getSubjectByCode(subjectCode).addOnSuccessListener(queryDocumentSnapshots -> {
-            if (!queryDocumentSnapshots.isEmpty()) {
-                Subject subject = queryDocumentSnapshots.getDocuments().get(0).toObject(Subject.class);
-                if (subject != null) {
-                    if (myAssignments != null) {
-                        List<String> studentIds = new ArrayList<>();
-                        for (CourseAssignment ca : myAssignments) {
-                            if (ca.getSubjectId().equals(subject.getId()) && ca.getSemester().equals(semester)) {
-                                studentIds.add(ca.getStudentId());
-                            }
-                        }
-                        loadStudentDetails(studentIds);
+        new Thread(() -> {
+            Subject subject = subjectDatabase.getSubjectByCode(subjectCode);
+            
+            if (subject != null && myAssignments != null) {
+                List<String> studentIds = new ArrayList<>();
+                android.util.Log.d("FacultyAddResult", "Loading students for Subject: " + subjectCode + ", Semester: " + semester);
+                android.util.Log.d("FacultyAddResult", "Subject ID: " + subject.getId());
+                android.util.Log.d("FacultyAddResult", "Total assignments: " + myAssignments.size());
+                
+                for (CourseAssignment ca : myAssignments) {
+                    android.util.Log.d("FacultyAddResult", "Assignment - SubjectID: " + ca.getSubjectId() + ", Semester: " + ca.getSemester() + ", StudentID: " + ca.getStudentId());
+                    if (ca.getSubjectId().equals(subject.getId()) && ca.getSemester().equals(semester)) {
+                        studentIds.add(ca.getStudentId());
+                        android.util.Log.d("FacultyAddResult", "Matched student: " + ca.getStudentId());
                     }
                 }
+                
+                android.util.Log.d("FacultyAddResult", "Total students found: " + studentIds.size());
+                loadStudentDetails(studentIds);
+            } else {
+                android.util.Log.e("FacultyAddResult", "Subject not found or no assignments");
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "No students found for this course", Toast.LENGTH_SHORT).show();
+                });
             }
-        });
+        }).start();
     }
 
     private void loadStudentDetails(List<String> studentIds) {
-        List<Task<DocumentSnapshot>> tasks = new ArrayList<>();
-        for (String id : studentIds) {
-            tasks.add(studentDatabase.getStudent(id));
-        }
-
-        Tasks.whenAllSuccess(tasks).addOnSuccessListener(objects -> {
+        new Thread(() -> {
             List<Student> students = new ArrayList<>();
-            for (Object obj : objects) {
-                DocumentSnapshot snap = (DocumentSnapshot) obj;
-                if (snap.exists()) {
-                    students.add(snap.toObject(Student.class));
+            android.util.Log.d("FacultyAddResult", "Loading details for " + studentIds.size() + " students");
+            
+            for (String id : studentIds) {
+                android.util.Log.d("FacultyAddResult", "Fetching student: " + id);
+                Student student = studentDatabase.getStudent(id);
+                if (student != null) {
+                    students.add(student);
+                    android.util.Log.d("FacultyAddResult", "Student found: " + student.getName() + " (" + student.getId() + ")");
+                } else {
+                    android.util.Log.e("FacultyAddResult", "Student NOT found in database: " + id);
                 }
             }
-            // Setup RecyclerView
-            StudentSelectionAdapter adapter = new StudentSelectionAdapter(students, student -> {
-                selectedStudent = student;
-                tvSelectedStudent.setText("Selected Student: " + student.getName() + " (" + student.getId() + ")");
+            
+            android.util.Log.d("FacultyAddResult", "Total students loaded: " + students.size());
+            
+            runOnUiThread(() -> {
+                if (students.isEmpty()) {
+                    Toast.makeText(this, "No students assigned to this course. Please check course assignments.", Toast.LENGTH_LONG).show();
+                    android.util.Log.w("FacultyAddResult", "No students to display!");
+                }
+                
+                // Setup RecyclerView
+                StudentSelectionAdapter adapter = new StudentSelectionAdapter(students, student -> {
+                    selectedStudent = student;
+                    tvSelectedStudent.setText("Selected Student: " + student.getName() + " (" + student.getId() + ")");
+                });
+                rvStudents.setAdapter(adapter);
+                
+                // Show count
+                Toast.makeText(this, students.size() + " student(s) found for this course", Toast.LENGTH_SHORT).show();
             });
-            rvStudents.setAdapter(adapter);
-        });
+        }).start();
     }
 
     private void publishResult() {
@@ -205,28 +216,30 @@ public class FacultyAddResultActivity extends AppCompatActivity {
         String subjectCode = parts[0];
         String semester = parts[1];
 
-        subjectDatabase.getSubjectByCode(subjectCode).addOnSuccessListener(queryDocumentSnapshots -> {
-            if (!queryDocumentSnapshots.isEmpty()) {
-                Subject subject = queryDocumentSnapshots.getDocuments().get(0).toObject(Subject.class);
-                if (subject != null) {
-                    Result result = new Result();
-                    result.setStudentId(selectedStudent.getId());
-                    result.setSubjectId(subject.getId());
-                    result.setMarks(marks);
-                    result.setGrade(grade);
-                    result.setSemester(semester);
+        new Thread(() -> {
+            Subject subject = subjectDatabase.getSubjectByCode(subjectCode);
+            
+            if (subject != null) {
+                Result result = new Result();
+                result.setStudentId(selectedStudent.getId());
+                result.setSubjectId(subject.getId());
+                result.setMarks(marks);
+                result.setGrade(grade);
+                result.setSemester(semester);
 
-                    resultDatabase.addResult(result).addOnSuccessListener(aVoid -> {
+                boolean success = resultDatabase.addResult(result);
+                
+                runOnUiThread(() -> {
+                    if (success) {
                         Toast.makeText(this, "Published: " + grade, Toast.LENGTH_SHORT).show();
                         etMarks.setText("");
                         selectedStudent = null;
                         tvSelectedStudent.setText("Selected Student: None");
-                        // Ideally refresh list or selection
-                    }).addOnFailureListener(e -> {
+                    } else {
                         Toast.makeText(this, "Failed to publish result", Toast.LENGTH_SHORT).show();
-                    });
-                }
+                    }
+                });
             }
-        });
+        }).start();
     }
 }

@@ -80,7 +80,7 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
 
     private void setupSpinners() {
         // Departments
-        String[] departments = { "Select Department", "CSE", "EEE", "Civil", "ME" };
+        String[] departments = { "Select Department", "CSE", "EEE", "Civil", "ME", "Physics", "Math", "Chemistry" };
         ArrayAdapter<String> deptAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, departments);
         deptAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         departmentSpinner.setAdapter(deptAdapter);
@@ -156,7 +156,7 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
         // Credit
         EditText creditEt = new EditText(this);
         creditEt.setHint("Cr");
-        creditEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        creditEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         creditEt.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.8f));
 
         // Faculty Spinner
@@ -257,15 +257,15 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
         Faculty faculty = (facultyIdx - 1 < allFaculty.size()) ? allFaculty.get(facultyIdx - 1) : null;
         if (faculty == null) return;
 
-        int credit = 0;
+        double credit = 0;
         try {
-            credit = Integer.parseInt(creditStr);
+            credit = Double.parseDouble(creditStr);
         } catch (NumberFormatException e) {
             logStatus("Invalid credit for " + code);
             return;
         }
 
-        int finalCredit = credit;
+        double finalCredit = credit;
         String finalName = name;
         
         // Check or Create Subject in background
@@ -298,10 +298,19 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
 
     private void assignToStudents(Subject subject, Faculty faculty, String semester, List<Student> students) {
         int successCount = 0;
+        int alreadyAssignedCount = 0;
+        int failedCount = 0;
+        
+        android.util.Log.d("AdminAssignCourse", "Assigning " + subject.getCode() + " to " + students.size() + " students");
+        android.util.Log.d("AdminAssignCourse", "Subject ID: " + subject.getId() + ", Faculty ID: " + faculty.getId() + ", Semester: " + semester);
         
         for (Student s : students) {
+            android.util.Log.d("AdminAssignCourse", "Processing student: " + s.getId() + " (" + s.getName() + ")");
+            
             // Check if already assigned
-            if (!courseAssignmentDatabase.isAssigned(s.getId(), subject.getId(), faculty.getId())) {
+            boolean isAssigned = courseAssignmentDatabase.isAssigned(s.getId(), subject.getId(), faculty.getId());
+            
+            if (!isAssigned) {
                 CourseAssignment ca = new CourseAssignment();
                 ca.setStudentId(s.getId());
                 ca.setSubjectId(subject.getId());
@@ -310,12 +319,27 @@ public class AdminAssignCourseActivity extends AppCompatActivity {
                 
                 if (courseAssignmentDatabase.assignCourse(ca)) {
                     successCount++;
+                    android.util.Log.d("AdminAssignCourse", "✓ Successfully assigned to: " + s.getId());
+                } else {
+                    failedCount++;
+                    android.util.Log.e("AdminAssignCourse", "✗ Failed to assign to: " + s.getId());
                 }
+            } else {
+                alreadyAssignedCount++;
+                android.util.Log.d("AdminAssignCourse", "○ Already assigned: " + s.getId());
             }
         }
         
-        int finalCount = successCount;
-        logStatus("Assigned " + subject.getCode() + " to " + finalCount + " students.");
+        int finalSuccessCount = successCount;
+        int finalAlreadyCount = alreadyAssignedCount;
+        int finalFailedCount = failedCount;
+        
+        String statusMsg = "Assigned " + subject.getCode() + " - New: " + finalSuccessCount + 
+                          ", Already: " + finalAlreadyCount + ", Failed: " + finalFailedCount + 
+                          " (Total students: " + students.size() + ")";
+        
+        android.util.Log.d("AdminAssignCourse", statusMsg);
+        logStatus(statusMsg);
     }
 
     private void logStatus(String msg) {

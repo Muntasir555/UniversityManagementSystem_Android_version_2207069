@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <ImageView
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/ic_launcher_foreground"
+        android:layout_marginBottom="24dp"/>
+
+    <TextView
+        android:id="@+id/tvStudentName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Student Name"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/tvStudentId"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ID: 123456"
+        android:textSize="16sp"
+        android:layout_marginBottom="4dp"/>
+
+    <TextView
+        android:id="@+id/tvStudentEmail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="email@student.com"
+        android:textSize="16sp"
+        android:layout_marginBottom="4dp"/>
+
+    <TextView
+        android:id="@+id/tvStudentDepartment"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Department: CSE"
+        android:textSize="16sp"
+        android:layout_marginBottom="4dp"/>
+    
+    <TextView
+        android:id="@+id/tvStudentBatch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Batch: 55"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/tvStudentCGPA"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CGPA: 3.85"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#009688"
+        android:layout_marginBottom="32dp"/>
+
+    <Button
+        android:id="@+id/btnChangePassword"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Change Password"/>
+
+</LinearLayout>
